@@ -223,6 +223,68 @@
         border-radius: 20px;
         border: 1px solid #b2e4e1;
     }
+
+    /* ── Drill-down svod table (from summary) ── */
+    .svod-table { width:100%; border-collapse:collapse; font-size:.83rem; }
+    .svod-table thead tr.hdr-group th {
+        padding:7px 10px; font-weight:700; font-size:.71rem;
+        color:#fff; border:1px solid rgba(255,255,255,.2);
+        text-align:center; letter-spacing:.04em; text-transform:uppercase; white-space:nowrap;
+    }
+    .svod-table thead tr.hdr-cols th {
+        padding:9px 10px; font-weight:600; font-size:.72rem;
+        color:#fff; background:#018c87; border:1px solid #017570;
+        text-align:center; vertical-align:middle; line-height:1.3; white-space:nowrap;
+    }
+    .svod-table thead tr.hdr-cols th:first-child { text-align:left; }
+    .svod-table thead tr.hdr-group  th.g-pay  { background:#018c87; }
+    .svod-table thead tr.hdr-group  th.g-pf   { background:#1d6954; }
+    .svod-table thead tr.hdr-cols  th.g-pf   { background:#1d6954; border-color:#175945; }
+    .svod-table tbody td {
+        padding:7px 10px; border:1px solid #ebebeb; color:#27314b; vertical-align:middle;
+    }
+    .svod-table tbody tr { transition:background .1s; }
+    .svod-table tbody tr:hover { background:#e8f7f6 !important; }
+    .svod-table tbody td.num  { text-align:right; font-weight:500; }
+    .svod-table tbody td.sep  { border-left:1px solid #a8d8d5 !important; }
+    .row-district td    { background:#f4fefe; font-weight:600; }
+    .row-district .d-name { display:flex; align-items:center; gap:6px; }
+    .row-year td    { background:#edf8f7; font-weight:600; font-size:.8rem; }
+    .row-year .d-name { padding-left:18px; display:flex; align-items:center; gap:6px; }
+    .row-month td   { background:#f5fbfb; font-size:.78rem; }
+    .row-month .d-name { padding-left:36px; display:flex; align-items:center; gap:6px; }
+    .row-day td     { background:#fff; font-size:.76rem; color:#444; padding:5px 10px; }
+    .row-day .d-name { padding-left:52px; display:flex; align-items:center; gap:6px; }
+    .row-total td   {
+        background:#e8f4f3; font-weight:700; color:#015c58;
+        border-top:2px solid #018c87; border-bottom:2px solid #018c87;
+    }
+    .tog {
+        display:inline-flex; align-items:center; justify-content:center;
+        width:18px; height:18px; border-radius:4px; font-size:.8rem; font-weight:700;
+        cursor:pointer; user-select:none; flex-shrink:0;
+        background:#018c87; color:#fff; border:none; line-height:1;
+        transition:background .15s;
+    }
+    .tog:hover { background:#017570; }
+    .tog.collapsed::after { content:'+'; }
+    .tog.expanded::after  { content:'−'; }
+    .pbar-wrap { background:#e4e4e4; border-radius:3px; height:7px; min-width:60px; }
+    .pbar      { height:7px; border-radius:3px; background:#018c87; }
+    .pbar.over { background:#e63260; }
+    .row-day--plan-only td:first-child { border-left:3px solid #f0a500 !important; }
+    .row-day--fact-only td:first-child { border-left:3px solid #1aad4e !important; }
+    .row-day--both      td:first-child { border-left:3px solid #018c87 !important; }
+    .day-badge {
+        display:inline-flex; align-items:center;
+        font-size:.6rem; font-weight:700;
+        padding:1px 5px; border-radius:10px; letter-spacing:.03em;
+        text-transform:uppercase; white-space:nowrap; line-height:1.4;
+        vertical-align:middle; margin-left:4px;
+    }
+    .day-badge--plan  { background:#fff0b3; color:#7a5900; border:1px solid #f0a500; }
+    .day-badge--fact  { background:#d6f5e3; color:#0d6e30; border:1px solid #1aad4e; }
+    .day-badge--both  { background:#ccf0ee; color:#015c58; border:1px solid #018c87; }
 </style>
 @endpush
 
@@ -276,155 +338,274 @@
     </div>
 </div>
 
-{{-- ── Two-column: Monthly + Districts ── --}}
-<div class="two-col">
-    {{-- Monthly Table --}}
-    <div class="tbl-block">
-        <div class="tbl-block-header">
-            Ойлик тушум
-            <span class="sub">Охирги 18 ой</span>
-        </div>
-        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
-            <table class="inline-table">
-                <thead>
-                    <tr>
-                        <th>Йил</th>
-                        <th>Ой</th>
-                        <th class="num">Приход (млн)</th>
-                        <th class="num">Сони</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($monthlyStats as $stat)
-                        <tr class="clickable" onclick="openModal('Ой: '+this.dataset.month+' '+this.dataset.year, {year:this.dataset.year, month:this.dataset.month})" data-year="{{ $stat->year }}" data-month="{{ $stat->month }}">
-                            <td><span class="month-badge">{{ $stat->year }}</span></td>
-                            <td class="name">{{ $stat->month }}</td>
-                            <td class="num">{{ number_format($stat->income, 2, '.', ' ') }}</td>
-                            <td class="cnt">{{ number_format($stat->cnt) }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="4" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    {{-- District Table --}}
-    <div class="tbl-block">
-        <div class="tbl-block-header">
-            Туманлар бўйича
-            <span class="sub">Приход бўйича</span>
-        </div>
-        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
-            <table class="inline-table">
-                <thead>
-                    <tr>
-                        <th>Туман</th>
-                        <th class="num">Приход (млн)</th>
-                        <th class="num">Сони</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($districtStats as $stat)
-                        @php $pct = $maxDistrict > 0 ? ($stat->income / $maxDistrict * 100) : 0; @endphp
-                        <tr class="clickable" onclick="openModal('Туман: '+this.dataset.district, {district:this.dataset.district})" data-district="{{ $stat->district }}">
-                            <td class="name">
-                                {{ $stat->district }}
-                                <div class="bar-wrap"><div class="bar-fill" style="width:{{ $pct }}%"></div></div>
-                            </td>
-                            <td class="num">{{ number_format($stat->income, 1, '.', ' ') }}</td>
-                            <td class="cnt">{{ number_format($stat->cnt) }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="3" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-{{-- ── Plan vs Fact by district ── --}}
+{{-- ── Drill-down: Туман → Йил → Ой → Кун ── --}}
+@php
+    $grandPlan = array_sum(array_column($planFact, 'plan'));
+    $grandFact = array_sum(array_column($planFact, 'fact'));
+    $grandBal  = $grandPlan - $grandFact;
+    $grandPct  = $grandPlan > 0 ? round($grandFact / $grandPlan * 100, 1) : 0;
+    $grandBarW = min($grandPct, 100);
+@endphp
 <div class="tbl-block">
     <div class="tbl-block-header">
-        План — Факт (Туманлар бўйича)
-        <span class="sub">Шартнома қиймати vs Тушум (млн.сўм)</span>
+        <span class="title">Туман &rarr; Йил &rarr; Ой &rarr; Кун (дрилл-даун)</span>
+        <span class="sub">млн.сўм &middot; + босиб кенгайтиринг</span>
+        <div style="display:flex;gap:8px;align-items:center;" class="no-print">
+            <button onclick="expandAll()" class="print-btn" style="background:#6e788b;padding:6px 14px;font-size:.75rem;">+ Барчасини очиш</button>
+            <button onclick="collapseAll()" class="print-btn" style="background:#6e788b;padding:6px 14px;font-size:.75rem;">− Барчасини юмиш</button>
+        </div>
     </div>
     <div style="overflow-x:auto;">
-        <table class="inline-table">
-            <thead>
-                <tr>
-                    <th>Туман</th>
-                    <th class="num">План</th>
-                    <th class="num">Факт</th>
-                    <th class="num">Бажарилиш</th>
-                    <th style="width:160px;">Прогресс</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($planFact as $pf)
-                @php
-                    $pct = $pf->plan_total > 0 ? min(round($pf->fact_total / $pf->plan_total * 100), 100) : 0;
-                    $pctReal = $pf->plan_total > 0 ? round($pf->fact_total / $pf->plan_total * 100, 1) : 0;
-                @endphp
-                <tr>
-                    <td class="name">{{ $pf->district }}</td>
-                    <td class="num">{{ number_format($pf->plan_total, 1, '.', ' ') }}</td>
-                    <td class="num" style="color:#0a8a2e;">{{ number_format($pf->fact_total, 1, '.', ' ') }}</td>
-                    <td class="num" style="color:{{ $pf->plan_total > $pf->fact_total ? '#e63260' : '#0a8a2e' }};">
-                        {{ number_format($pf->plan_total - $pf->fact_total, 1, '.', ' ') }}
-                    </td>
-                    <td>
-                        <div style="display:flex;align-items:center;gap:6px;">
-                            <div class="bar-wrap" style="flex:1;"><div class="bar-fill" style="width:{{ $pct }}%;"></div></div>
-                            <span style="font-size:.72rem;color:#6e788b;white-space:nowrap;">{{ $pctReal }}%</span>
-                        </div>
-                    </td>
-                </tr>
-                @empty
-                    <tr><td colspan="5" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
-                @endforelse
-            </tbody>
-        </table>
-    </div>
-</div>
+    <table class="svod-table" id="svod-tbl">
+        <thead>
+            <tr class="hdr-group">
+                <th rowspan="2" class="g-pay" style="text-align:left;min-width:160px;">Туман / Йил / Ой</th>
+                <th colspan="5" class="g-pay">АПЗ Тўловлари (факт, млн.сўм)</th>
+                <th colspan="5" class="g-pf">План — Факт</th>
+            </tr>
+            <tr class="hdr-cols">
+                <th class="g-pay">Шартн.</th>
+                <th class="g-pay">Жами тушум</th>
+                <th class="g-pay">АПЗ тўлови</th>
+                <th class="g-pay">Пеня</th>
+                <th class="g-pay">Қайтариш</th>
+                <th class="g-pf sep">План</th>
+                <th class="g-pf">Факт</th>
+                <th class="g-pf">Қолдиқ</th>
+                <th class="g-pf">%</th>
+                <th class="g-pf">Прогресс</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{-- GRAND TOTAL row --}}
+            <tr class="row-total">
+                <td style="font-weight:700;">ЖАМИ</td>
+                <td class="num">{{ number_format($totals['contract_count']) }}</td>
+                <td class="num">{{ number_format($totals['total_income'], 2, '.', ' ') }}</td>
+                <td class="num">{{ number_format($totals['apz_payment'], 2, '.', ' ') }}</td>
+                <td class="num">{{ $totals['penalty'] > 0 ? number_format($totals['penalty'], 2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $totals['refund']  > 0 ? number_format($totals['refund'],  2, '.', ' ') : '—' }}</td>
+                <td class="num sep">{{ number_format($grandPlan, 2, '.', ' ') }}</td>
+                <td class="num" style="color:#0a8a2e;">{{ number_format($grandFact, 2, '.', ' ') }}</td>
+                <td class="num" style="color:{{ $grandBal <= 0 ? '#0bc33f' : '#e63260' }};">
+                    {{ number_format($grandBal, 2, '.', ' ') }}
+                </td>
+                <td class="num" style="font-weight:700;color:{{ $grandPct >= 100 ? '#0bc33f' : '#27314b' }};">
+                    {{ number_format($grandPct, 1) }}%
+                </td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <div class="pbar-wrap" style="flex:1;"><div class="pbar {{ $grandPct > 100 ? 'over' : '' }}" style="width:{{ $grandBarW }}%;"></div></div>
+                        <span style="font-size:.7rem;color:#6e788b;">{{ number_format($grandPct, 1) }}%</span>
+                    </div>
+                </td>
+            </tr>
 
-{{-- ── Payment types ── --}}
-<div class="tbl-block">
-    <div class="tbl-block-header">
-        Тўлов турлари бўйича
-        <span class="sub">АПЗ / Пеня / Қайтариш</span>
-    </div>
-    <div style="overflow-x:auto;">
-        <table class="inline-table">
-            <thead>
-                <tr>
-                    <th>Тури</th>
-                    <th class="num">Приход (млн)</th>
-                    <th class="num">Сони</th>
-                    <th style="width:160px;">Улуш</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($typeStats as $stat)
-                    @php $pct = $maxType > 0 ? ($stat->income / $maxType * 100) : 0; @endphp
-                    <tr>
-                        <td class="name">{{ $stat->type ?? '—' }}</td>
-                        <td class="num">{{ number_format($stat->income, 2, '.', ' ') }}</td>
-                        <td class="cnt">{{ number_format($stat->cnt) }}</td>
-                        <td>
-                            <div style="display:flex;align-items:center;gap:8px;">
-                                <div class="bar-wrap" style="flex:1;"><div class="bar-fill" style="width:{{ $pct }}%;background:#1471f0;"></div></div>
-                                <span style="font-size:.72rem;color:#6e788b;white-space:nowrap;">{{ number_format($pct, 0) }}%</span>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="4" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
-                @endforelse
-            </tbody>
-        </table>
+            {{-- Per district rows --}}
+            @foreach($summaryData as $row)
+            @php
+                $dist    = $row['district'];
+                $pf      = $planFact[$dist] ?? ['plan'=>0,'fact'=>0,'pct'=>0,'balance'=>0];
+                $isOver  = $pf['pct'] > 100;
+                $barW    = min($pf['pct'], 100);
+                $dKey    = 'd_' . md5($dist);
+                $distYears = [];
+                foreach ($dayRows[$dist] ?? [] as $yr => $_) { $distYears[$yr] = true; }
+                ksort($distYears);
+            @endphp
+
+            {{-- District row --}}
+            <tr class="row-district" data-level="district" data-key="{{ $dKey }}">
+                <td>
+                    <div class="d-name">
+                        @if(count($distYears))
+                        <button class="tog collapsed" onclick="toggleGroup('{{ $dKey }}',this)" title="Очиш / Юмиш"></button>
+                        @endif
+                        {{ $dist }}
+                    </div>
+                </td>
+                <td class="num">{{ $row['contract_count'] }}</td>
+                <td class="num">{{ number_format($row['total_income'], 2, '.', ' ') }}</td>
+                <td class="num">{{ $row['apz_payment'] > 0 ? number_format($row['apz_payment'], 2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $row['penalty']     > 0 ? number_format($row['penalty'],     2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $row['refund']      > 0 ? number_format($row['refund'],      2, '.', ' ') : '—' }}</td>
+                <td class="num sep">{{ $pf['plan'] > 0 ? number_format($pf['plan'], 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:#0a8a2e;">{{ $pf['fact'] > 0 ? number_format($pf['fact'], 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:{{ $pf['balance'] <= 0 ? '#0bc33f' : '#e63260' }};font-weight:600;">
+                    {{ $pf['plan'] > 0 ? number_format($pf['balance'], 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="font-weight:700;color:{{ $isOver ? '#0bc33f' : '#27314b' }};">
+                    {{ $pf['plan'] > 0 ? number_format($pf['pct'], 1).'%' : '—' }}
+                </td>
+                <td>
+                    @if($pf['plan'] > 0)
+                    <div style="display:flex;align-items:center;gap:5px;">
+                        <div class="pbar-wrap" style="flex:1;"><div class="pbar {{ $isOver ? 'over' : '' }}" style="width:{{ $barW }}%;"></div></div>
+                        <span style="font-size:.7rem;color:#6e788b;">{{ number_format($pf['pct'], 1) }}%</span>
+                    </div>
+                    @else <span style="color:#bbb;">—</span>
+                    @endif
+                </td>
+            </tr>
+
+            {{-- Year level --}}
+            @foreach($distYears as $yr => $_)
+            @php
+                $yrKey    = $dKey . '_y' . $yr;
+                $yrFact   = $pfYear[$yr][$dist] ?? 0;
+                $yrPlan   = $pfYearPlan[$dist][$yr] ?? 0;
+                $yrBal    = $yrPlan > 0 ? round($yrPlan - $yrFact, 2) : null;
+                $yrPct    = $yrPlan > 0 ? round($yrFact / $yrPlan * 100, 1) : null;
+                $yrBarW   = $yrPct !== null ? min($yrPct, 100) : 0;
+                $yrIsOver = $yrPct !== null && $yrPct > 100;
+                $yrIncome = $yrApz = $yrPen = $yrRef = $yrCnt = 0;
+                foreach ($dayRows[$dist][$yr] ?? [] as $mo => $dRows) {
+                    foreach ($dRows as $dr) {
+                        $yrIncome += $dr['income'] ?? 0;
+                        $yrApz    += $dr['apz']    ?? 0;
+                        $yrPen    += $dr['pen']    ?? 0;
+                        $yrRef    += $dr['ref']    ?? 0;
+                        $yrCnt    += $dr['cnt']    ?? 0;
+                    }
+                }
+            @endphp
+            <tr class="row-year" data-parent="{{ $dKey }}" data-key="{{ $yrKey }}" style="display:none;">
+                <td>
+                    <div class="d-name">
+                        <button class="tog collapsed" onclick="toggleGroup('{{ $yrKey }}',this)"></button>
+                        <strong>{{ $yr }} йил</strong>
+                    </div>
+                </td>
+                <td class="num">{{ $yrCnt ?: '—' }}</td>
+                <td class="num">{{ $yrIncome > 0 ? number_format($yrIncome, 2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $yrApz   > 0 ? number_format($yrApz,    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $yrPen   > 0 ? number_format($yrPen,    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $yrRef   > 0 ? number_format($yrRef,    2, '.', ' ') : '—' }}</td>
+                <td class="num sep" style="color:#6e788b;">{{ $yrPlan > 0 ? number_format($yrPlan, 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:#0a8a2e;">{{ $yrFact > 0 ? number_format($yrFact, 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:{{ $yrBal !== null ? ($yrBal <= 0 ? '#0bc33f' : '#e63260') : '' }};">
+                    {{ $yrBal !== null ? number_format($yrBal, 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="color:{{ $yrIsOver ? '#0bc33f' : '#27314b' }};">
+                    {{ $yrPct !== null ? number_format($yrPct, 1).'%' : '—' }}
+                </td>
+                <td>
+                    @if($yrPct !== null)
+                    <div style="display:flex;align-items:center;gap:4px;">
+                        <div class="pbar-wrap" style="flex:1;"><div class="pbar {{ $yrIsOver ? 'over' : '' }}" style="width:{{ $yrBarW }}%;"></div></div>
+                        <span style="font-size:.68rem;color:#6e788b;">{{ number_format($yrPct,1) }}%</span>
+                    </div>
+                    @else <span style="color:#bbb;">—</span>
+                    @endif
+                </td>
+            </tr>
+
+            {{-- Month level --}}
+            @foreach($dayRows[$dist][$yr] ?? [] as $mo => $moDayRows)
+            @php
+                $moIdx = array_search($mo, ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                                            'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']);
+                $moKey    = $yrKey . '_m' . ($moIdx !== false ? ($moIdx + 1) : md5($mo));
+                $moFact   = $pfMonth[$yr][$mo][$dist] ?? 0;
+                $moPlan   = $pfMonthPlan[$dist][$yr][$mo] ?? 0;
+                $moBal    = $moPlan > 0 ? round($moPlan - $moFact, 2) : null;
+                $moPct    = $moPlan > 0 ? round($moFact / $moPlan * 100, 1) : null;
+                $moBarW   = $moPct !== null ? min($moPct, 100) : 0;
+                $moIsOver = $moPct !== null && $moPct > 100;
+                $moIncome = $moApz = $moPen = $moRef = $moCnt = 0;
+                foreach ($moDayRows as $dr) {
+                    $moIncome += $dr['income'] ?? 0;
+                    $moApz    += $dr['apz']    ?? 0;
+                    $moPen    += $dr['pen']    ?? 0;
+                    $moRef    += $dr['ref']    ?? 0;
+                    $moCnt    += $dr['cnt']    ?? 0;
+                }
+            @endphp
+            <tr class="row-month" data-parent="{{ $yrKey }}" data-key="{{ $moKey }}" style="display:none;">
+                <td>
+                    <div class="d-name">
+                        <button class="tog collapsed" onclick="toggleGroup('{{ $moKey }}',this)"></button>
+                        {{ $mo }}
+                    </div>
+                </td>
+                <td class="num">{{ $moCnt ?: '—' }}</td>
+                <td class="num">{{ $moIncome > 0 ? number_format($moIncome, 2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $moApz   > 0 ? number_format($moApz,    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $moPen   > 0 ? number_format($moPen,    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $moRef   > 0 ? number_format($moRef,    2, '.', ' ') : '—' }}</td>
+                <td class="num sep" style="color:#6e788b;">{{ $moPlan > 0 ? number_format($moPlan, 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:#0a8a2e;">{{ $moFact > 0 ? number_format($moFact, 2, '.', ' ') : '—' }}</td>
+                <td class="num" style="color:{{ $moBal !== null ? ($moBal <= 0 ? '#0bc33f' : '#e63260') : '' }};">
+                    {{ $moBal !== null ? number_format($moBal, 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="color:{{ $moIsOver ? '#0bc33f' : '#27314b' }};">
+                    {{ $moPct !== null ? number_format($moPct, 1).'%' : '—' }}
+                </td>
+                <td>
+                    @if($moPct !== null)
+                    <div style="display:flex;align-items:center;gap:4px;">
+                        <div class="pbar-wrap" style="flex:1;"><div class="pbar {{ $moIsOver ? 'over' : '' }}" style="width:{{ $moBarW }}%;"></div></div>
+                        <span style="font-size:.68rem;color:#6e788b;">{{ number_format($moPct,1) }}%</span>
+                    </div>
+                    @else <span style="color:#bbb;">—</span>
+                    @endif
+                </td>
+            </tr>
+
+            {{-- Day level --}}
+            @foreach($moDayRows as $dr)
+            <tr class="row-day row-day--{{ $dr['type'] }}" data-parent="{{ $moKey }}" style="display:none;">
+                <td>
+                    <div class="d-name">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#aab0bb" stroke-width="2.5"><circle cx="12" cy="12" r="4"/></svg>
+                        <span style="font-weight:500;color:#27314b;">{{ $dr['date_fmt'] }}</span>
+                        @if($dr['type'] === 'plan')
+                            <span class="day-badge day-badge--plan">П</span>
+                        @elseif($dr['type'] === 'fact')
+                            <span class="day-badge day-badge--fact">Ф</span>
+                        @else
+                            <span class="day-badge day-badge--both">П+Ф</span>
+                        @endif
+                    </div>
+                </td>
+                <td class="num" style="color:#888;">{{ $dr['cnt'] ?: '—' }}</td>
+                <td class="num">{{ $dr['income'] !== null ? number_format($dr['income'], 2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $dr['apz']    !== null ? number_format($dr['apz'],    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $dr['pen']    !== null ? number_format($dr['pen'],    2, '.', ' ') : '—' }}</td>
+                <td class="num">{{ $dr['ref']    !== null ? number_format($dr['ref'],    2, '.', ' ') : '—' }}</td>
+                <td class="num sep" style="color:{{ $dr['plan'] !== null ? '#015c58' : '#ccc' }};">
+                    {{ $dr['plan'] !== null ? number_format($dr['plan'], 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="color:{{ $dr['fact'] !== null ? '#0a8a2e' : '#bbb' }};">
+                    {{ $dr['fact'] !== null ? number_format($dr['fact'], 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="color:{{ $dr['balance'] !== null ? ($dr['balance'] <= 0 ? '#0bc33f' : '#e63260') : '#bbb' }};">
+                    {{ $dr['balance'] !== null ? number_format($dr['balance'], 2, '.', ' ') : '—' }}
+                </td>
+                <td class="num" style="color:{{ $dr['pct'] !== null && $dr['pct'] >= 100 ? '#0bc33f' : '#555' }};">
+                    {{ $dr['pct'] !== null ? number_format($dr['pct'], 1).'%' : '—' }}
+                </td>
+                <td style="padding:5px 8px;">
+                    @if($dr['type'] === 'both')
+                    <div style="display:flex;align-items:center;gap:3px;">
+                        <div class="pbar-wrap" style="flex:1;height:5px;"><div class="pbar {{ $dr['pct'] > 100 ? 'over' : '' }}" style="width:{{ $dr['bar_w'] }}%;height:5px;"></div></div>
+                        <span style="font-size:.65rem;color:#6e788b;">{{ number_format($dr['pct'],1) }}%</span>
+                    </div>
+                    @elseif($dr['type'] === 'plan')
+                        <span style="font-size:.68rem;color:#e63260;">— кутмади</span>
+                    @else
+                        <span style="font-size:.68rem;color:#0a8a2e;">✓ тўлов</span>
+                    @endif
+                </td>
+            </tr>
+            @endforeach {{-- /day rows --}}
+
+            @endforeach {{-- /months --}}
+            @endforeach {{-- /years --}}
+            @endforeach {{-- /districts --}}
+
+        </tbody>
+    </table>
     </div>
 </div>
 
@@ -627,6 +808,43 @@ function fetchContract() {
 document.getElementById('cm-prev').onclick = () => { if(cmState.page>1){cmState.page--;fetchContract();} };
 document.getElementById('cm-next').onclick = () => { if(cmState.page<cmState.lastPage){cmState.page++;fetchContract();} };
 document.getElementById('contract-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeContract(); });
+
+// Drill-down table toggle functions (from summary)
+function toggleGroup(key, btn) {
+    const tbl  = document.getElementById('svod-tbl');
+    const rows = tbl.querySelectorAll('[data-parent="' + key + '"]');
+    const expanding = btn.classList.contains('collapsed');
+    btn.classList.toggle('collapsed', !expanding);
+    btn.classList.toggle('expanded',   expanding);
+    rows.forEach(function(row) {
+        row.style.display = expanding ? '' : 'none';
+        if (!expanding) {
+            const childKey = row.dataset.key;
+            if (childKey) collapseDescendants(tbl, childKey);
+        }
+    });
+}
+function collapseDescendants(tbl, key) {
+    tbl.querySelectorAll('[data-parent="' + key + '"]').forEach(function(row) {
+        row.style.display = 'none';
+        var btn = row.querySelector('.tog');
+        if (btn) { btn.classList.add('collapsed'); btn.classList.remove('expanded'); }
+        var childKey = row.dataset.key;
+        if (childKey) collapseDescendants(tbl, childKey);
+    });
+}
+function expandAll() {
+    document.querySelectorAll('#svod-tbl tbody tr').forEach(function(r) { r.style.display = ''; });
+    document.querySelectorAll('.tog').forEach(function(b) {
+        b.classList.add('expanded'); b.classList.remove('collapsed');
+    });
+}
+function collapseAll() {
+    document.querySelectorAll('#svod-tbl tbody [data-parent]').forEach(function(r) { r.style.display = 'none'; });
+    document.querySelectorAll('.tog').forEach(function(b) {
+        b.classList.add('collapsed'); b.classList.remove('expanded');
+    });
+}
 
 document.getElementById('dm-prev').onclick = () => { if(modalState.page > 1){ modalState.page--; fetchModal(); } };
 document.getElementById('dm-next').onclick = () => { if(modalState.page < modalState.lastPage){ modalState.page++; fetchModal(); } };

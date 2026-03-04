@@ -46,9 +46,6 @@ Route::middleware('auth')->group(function () {
         // Dashboard
         Route::get('/dashboard', [TransactionController::class, 'dashboard'])->name('dashboard');
 
-        // Summary report (Свод)
-        Route::get('/summary', [TransactionController::class, 'summary'])->name('summary');
-
         // Summary report 2 (Свод 2)
         Route::get('/summary2', [TransactionController::class, 'summary2'])->name('summary2');
 
