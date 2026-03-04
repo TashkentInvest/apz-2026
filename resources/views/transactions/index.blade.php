@@ -443,6 +443,16 @@
     </div>
 </div>
 
+{{-- ── Detail Drawer ── --}}
+<div id="drawer-overlay" onclick="closeDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;"></div>
+<div id="detail-drawer" style="position:fixed;top:0;right:-440px;width:420px;max-width:100vw;height:100vh;background:#fff;z-index:901;box-shadow:-4px 0 24px rgba(0,0,0,.18);display:flex;flex-direction:column;transition:right .25s ease;">
+    <div style="padding:16px 20px;background:#018c87;color:#fff;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:700;font-size:.95rem;">Тўлов тафсилоти</span>
+        <button onclick="closeDrawer()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;line-height:1;">✕</button>
+    </div>
+    <ul id="drawer-content" style="list-style:none;padding:0 20px;margin:0;overflow-y:auto;flex:1;"></ul>
+</div>
+
 @push('scripts')
 <script>
 function openDrawer(d) {

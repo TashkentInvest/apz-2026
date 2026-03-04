@@ -582,13 +582,21 @@ class TransactionController extends Controller
     public function modalContract(Request $request, $contractId)
     {
         $contract = DB::selectOne(
-            "SELECT c.*, COALESCE(SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END),0) as total_paid,
-                    COUNT(p.id) as payment_count
+            "SELECT c.*,
+                    COALESCE(agg.total_paid, 0)     as total_paid,
+                    COALESCE(agg.payment_count, 0)  as payment_count
              FROM apz_contracts c
-             LEFT JOIN apz_payments p ON p.contract_id = c.contract_id
+             LEFT JOIN (
+                 SELECT contract_id,
+                        SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_paid,
+                        COUNT(*) as payment_count
+                 FROM apz_payments
+                 WHERE contract_id = ?
+                 GROUP BY contract_id
+             ) agg ON agg.contract_id = c.contract_id
              WHERE c.contract_id = ?
-             GROUP BY c.id",
-            [$contractId]
+             LIMIT 1",
+            [$contractId, $contractId]
         );
 
         if (!$contract) {

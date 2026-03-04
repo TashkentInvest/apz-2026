@@ -169,6 +169,48 @@
     .dm-pg-info { font-size:.78rem; color:#6e788b; }
     .flow-in  { color:#0a8a2e; font-weight:600; }
     .flow-out { color:#e63260; font-weight:600; }
+    .dm-contract-btn {
+        padding:3px 10px; border:1px solid #018c87; border-radius:5px;
+        background:#fff; color:#018c87; font-size:.72rem; font-weight:600;
+        cursor:pointer; white-space:nowrap;
+    }
+    .dm-contract-btn:hover { background:#018c87; color:#fff; }
+
+    /* ── Contract detail modal (shared with summary2) ── */
+    #contract-modal {
+        display:none; position:fixed; inset:0; background:rgba(0,0,0,.5);
+        z-index:1100; align-items:center; justify-content:center; padding:16px;
+    }
+    #contract-modal.open { display:flex; }
+    .cm-box {
+        background:#fff; border-radius:14px; width:100%; max-width:860px;
+        max-height:92vh; display:flex; flex-direction:column;
+        box-shadow:0 8px 32px rgba(0,0,0,.2);
+    }
+    .cm-head {
+        padding:14px 20px; background:#018c87; border-radius:14px 14px 0 0; color:#fff;
+        display:flex; align-items:center; justify-content:space-between;
+    }
+    .cm-head h3 { margin:0; font-size:.92rem; font-weight:700; }
+    .cm-head button { background:none; border:none; color:#fff; font-size:1.2rem; cursor:pointer; }
+    .cm-body { padding:18px 20px; overflow-y:auto; flex:1; }
+    .cm-meta { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-bottom:18px; }
+    .cm-meta-item { background:#f4fefe; border-radius:8px; padding:10px 14px; border:1px solid #d3f0ee; }
+    .cm-meta-item .lbl { font-size:.68rem; color:#6e788b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+    .cm-meta-item .val { font-size:.88rem; font-weight:600; color:#15191e; }
+    .cm-section-title { font-size:.78rem; font-weight:700; color:#018c87; text-transform:uppercase;
+        letter-spacing:.05em; margin:16px 0 8px; border-bottom:1px solid #e0e0e0; padding-bottom:6px; }
+    .cm-table { width:100%; border-collapse:collapse; font-size:.79rem; margin-bottom:10px; }
+    .cm-table th { padding:7px 10px; background:#f4fefe; color:#015c58; font-weight:600; border:1px solid #e0e0e0; text-align:center; }
+    .cm-table td { padding:6px 10px; border:1px solid #ebebeb; }
+    .cm-table td.r { text-align:right; }
+    .cm-table tr:nth-child(even) td { background:#f9fdfd; }
+    .cm-footer { padding:12px 20px; border-top:1px solid #e8e8e8;
+        display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .cm-pg-btn { padding:5px 14px; border:1px solid #018c87; border-radius:6px;
+        background:#fff; color:#018c87; font-size:.78rem; font-weight:600; cursor:pointer; }
+    .cm-pg-btn:hover { background:#018c87; color:#fff; }
+    .cm-pg-btn:disabled { opacity:.4; cursor:not-allowed; }
 
     /* ── Month badge ── */
     .month-badge {
@@ -406,10 +448,11 @@
                             <th>Тур</th>
                             <th>Млн.сўм</th>
                             <th>Мақсад</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody id="dm-tbody">
-                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa;">Юкланиш кутилмоқда...</td></tr>
+                        <tr><td colspan="9" style="text-align:center;padding:30px;color:#aaa;">Юкланиш кутилмоқда...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -423,6 +466,38 @@
 </div>
 
 @endsection
+
+{{-- ── Contract Detail Modal ── --}}
+<div id="contract-modal">
+    <div class="cm-box">
+        <div class="cm-head">
+            <h3 id="cm-title">Шартнома тафсилоти</h3>
+            <button onclick="closeContract()">&#x2715;</button>
+        </div>
+        <div class="cm-body">
+            <div id="cm-meta" class="cm-meta"></div>
+            <div class="cm-section-title">Тўлов жадвали</div>
+            <div style="overflow-x:auto;">
+                <table class="cm-table">
+                    <thead><tr><th>#</th><th>Сана</th><th>Млн.сўм</th></tr></thead>
+                    <tbody id="cm-sched-body"><tr><td colspan="3" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
+                </table>
+            </div>
+            <div class="cm-section-title">Амалга тушумлар</div>
+            <div style="overflow-x:auto;">
+                <table class="cm-table">
+                    <thead><tr><th>#</th><th>Сана</th><th>Тур</th><th>Оқим</th><th>Млн.сўм</th><th>Мақсад</th></tr></thead>
+                    <tbody id="cm-pay-body"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="cm-footer">
+            <button id="cm-prev" class="cm-pg-btn" disabled>← Олдинги</button>
+            <span id="cm-pg-info" style="font-size:.78rem;color:#6e788b;">—</span>
+            <button id="cm-next" class="cm-pg-btn" disabled>Кейинги →</button>
+        </div>
+    </div>
+</div>
 
 @push('scripts')
 <script>
@@ -460,10 +535,15 @@ function fetchModal() {
 function renderModalRows(data) {
     const body = document.getElementById('dm-tbody');
     if (!data.rows.length) {
-        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa;">Маълумот йўқ</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#aaa;">Маълумот йўқ</td></tr>';
         return;
     }
-    body.innerHTML = data.rows.map((r, i) => `
+    body.innerHTML = data.rows.map((r, i) => {
+        const hasContract = r.contract_id ? true : false;
+        const btnHtml = hasContract
+            ? `<button class="dm-contract-btn" onclick="event.stopPropagation();openContract(${r.contract_id},'${(r.contract_number||'ID:'+r.contract_id).replace(/'/g,"\\'")}')">&#128196; Кўриш</button>`
+            : '<span style="color:#ccc;font-size:.72rem;">—</span>';
+        return `
         <tr>
             <td style="color:#aaa;font-size:.72rem;">${(data.page-1)*data.per_page + i + 1}</td>
             <td>${r.payment_date || '—'}</td>
@@ -473,13 +553,89 @@ function renderModalRows(data) {
             <td style="font-size:.75rem;">${r.type || '—'}</td>
             <td class="r ${r.flow === 'Приход' ? 'flow-in' : 'flow-out'}">${r.flow === 'Приход' ? '+' : '-'}${Number(r.amount/1000000).toFixed(2)}</td>
             <td style="font-size:.72rem;color:#888;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.payment_purpose || '—'}</td>
-        </tr>
-    `).join('');
+            <td style="text-align:center;">${btnHtml}</td>
+        </tr>`;
+    }).join('');
 }
+
+const CONTRACT_URL = '{{ url('/modal/contract') }}';
+let cmState = { contractId: null, page: 1, lastPage: 1 };
+
+function openContract(contractId, title) {
+    cmState = { contractId, page: 1, lastPage: 1 };
+    document.getElementById('cm-title').textContent = title;
+    document.getElementById('contract-modal').classList.add('open');
+    document.getElementById('cm-meta').innerHTML = '<div style="color:#aaa;text-align:center;padding:20px;">Юкланмоқда...</div>';
+    document.getElementById('cm-sched-body').innerHTML = '<tr><td colspan="3" style="text-align:center;color:#aaa;padding:10px;">...</td></tr>';
+    document.getElementById('cm-pay-body').innerHTML = '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:10px;">...</td></tr>';
+    fetchContract();
+}
+function closeContract() {
+    document.getElementById('contract-modal').classList.remove('open');
+}
+function fetchContract() {
+    const prev = document.getElementById('cm-prev');
+    const next = document.getElementById('cm-next');
+    const info = document.getElementById('cm-pg-info');
+    prev.disabled = true; next.disabled = true;
+    fetch(`${CONTRACT_URL}/${cmState.contractId}?page=${cmState.page}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { document.getElementById('cm-meta').innerHTML = `<div style="color:#e63260;padding:20px;">${data.error}</div>`; return; }
+        cmState.lastPage = data.last_page;
+        // meta
+        const c = data.contract;
+        const fmtM = v => v > 0 ? (v/1000000).toFixed(4)+' млн' : '—';
+        const metaItems = [
+            ['Шартнома рақами', c.contract_number||'—'],
+            ['Туман', c.district||'—'],
+            ['Инвестор', c.investor_name||'—'],
+            ['Шартнома санаси', c.contract_date ? c.contract_date.slice(0,10).split('-').reverse().join('.') : '—'],
+            ['Шартнома қиймати', fmtM(c.contract_value)],
+            ['Жами тўланган', fmtM(c.total_paid)],
+            ['Тўловлар сони', c.payment_count||'0'],
+            ['Тўлов шарти', c.payment_terms||'—'],
+            ['Ҳолат', c.contract_status||'—'],
+        ];
+        document.getElementById('cm-meta').innerHTML = metaItems.map(([l,v]) =>
+            `<div class="cm-meta-item"><div class="lbl">${l}</div><div class="val">${v}</div></div>`).join('');
+        // schedule
+        const sBody = document.getElementById('cm-sched-body');
+        sBody.innerHTML = data.schedule && data.schedule.length
+            ? data.schedule.map((s,i) => `<tr><td style="text-align:center;color:#aaa;font-size:.72rem;">${i+1}</td><td>${s.date}</td><td class="r">${Number(s.amount).toFixed(4)}</td></tr>`).join('')
+            : '<tr><td colspan="3" style="text-align:center;color:#aaa;padding:10px;">Жадвал йўқ</td></tr>';
+        // payments
+        const pBody = document.getElementById('cm-pay-body');
+        pBody.innerHTML = data.payments && data.payments.length
+            ? data.payments.map((p,i) => { const isIn = p.flow==='Приход'; return `<tr>
+                <td style="text-align:center;color:#aaa;font-size:.72rem;">${(data.page-1)*data.per_page+i+1}</td>
+                <td>${p.payment_date||'—'}</td>
+                <td style="font-size:.75rem;">${p.type||'—'}</td>
+                <td class="${isIn?'flow-in':'flow-out'}">${p.flow||'—'}</td>
+                <td class="r ${isIn?'flow-in':'flow-out'}">${isIn?'+':'-'}${(p.amount/1000000).toFixed(4)}</td>
+                <td style="font-size:.72rem;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.payment_purpose||''}">${p.payment_purpose||'—'}</td>
+            </tr>`; }).join('')
+            : '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:10px;">Тўловлар йўқ</td></tr>';
+        info.textContent = `${data.page} / ${data.last_page} (Жами: ${data.total})`;
+        prev.disabled = data.page <= 1;
+        next.disabled = data.page >= data.last_page;
+    })
+    .catch(err => { document.getElementById('cm-meta').innerHTML = '<div style="color:#e63260;padding:20px;">Хатолик юз берди</div>'; console.error(err); });
+}
+document.getElementById('cm-prev').onclick = () => { if(cmState.page>1){cmState.page--;fetchContract();} };
+document.getElementById('cm-next').onclick = () => { if(cmState.page<cmState.lastPage){cmState.page++;fetchContract();} };
+document.getElementById('contract-modal').addEventListener('click', e => { if(e.target===e.currentTarget) closeContract(); });
 
 document.getElementById('dm-prev').onclick = () => { if(modalState.page > 1){ modalState.page--; fetchModal(); } };
 document.getElementById('dm-next').onclick = () => { if(modalState.page < modalState.lastPage){ modalState.page++; fetchModal(); } };
 document.getElementById('detail-modal').addEventListener('click', e => { if(e.target === e.currentTarget) closeModal(); });
-document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => {
+    if(e.key === 'Escape') {
+        if(document.getElementById('contract-modal').classList.contains('open')) closeContract();
+        else closeModal();
+    }
+});
 </script>
 @endpush
