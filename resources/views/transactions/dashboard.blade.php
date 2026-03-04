@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Бош панел')
+@section('title', 'АПЗ Бош панел')
 
 @push('styles')
 <style>
@@ -148,59 +148,50 @@
 @section('content')
 
 @php
-    $totalCredit    = $summary['total_credit'] ?? 0;
-    $totalDebit     = $summary['total_debit'] ?? 0;
-    $totalRecords   = $summary['total_records'] ?? 0;
-    $uDistricts     = $summary['unique_districts'] ?? 0;
-    $uTypes         = $summary['unique_types'] ?? 0;
+    $totalIncome    = $global->total_income ?? 0;
+    $totalExpense   = $global->total_expense ?? 0;
+    $totalRecords   = $global->total_records ?? 0;
+    $uDistricts     = $global->unique_districts ?? 0;
+    $uContracts     = $global->unique_contracts ?? 0;
 
-    $lmCredit       = $lastMonthStats['credit'] ?? 0;
-    $lmDebit        = $lastMonthStats['debit'] ?? 0;
-    $lmRecords      = $lastMonthStats['total_records'] ?? 0;
+    $totalContracts = $contractStats->total ?? 0;
+    $completedC     = $contractStats->completed ?? 0;
+    $cancelledC     = $contractStats->cancelled ?? 0;
+    $activeC        = $contractStats->active ?? 0;
+    $totalPlanValue = $contractStats->total_value ?? 0;
 
-    $tmCredit       = $thisMonthStats['credit'] ?? 0;
-    $tmDebit        = $thisMonthStats['debit'] ?? 0;
-
-    // Delta % vs last month
-    $delta = $lmCredit > 0 ? (($tmCredit - $lmCredit) / $lmCredit * 100) : 0;
-    $deltaUp = $delta >= 0;
-
-    // Max credit for bar widths — $districtStats and $typeStats are arrays from DB::select()
-    $maxDistrict = count($districtStats) ? max(array_column((array) $districtStats, 'total_credit')) : 1;
+    $maxDistrict = count($districtStats) ? max(array_column((array) $districtStats, 'income')) : 1;
     $maxDistrict = $maxDistrict ?: 1;
-    $maxType     = count($typeStats) ? max(array_column((array) $typeStats, 'total_credit')) : 1;
+    $maxType     = count($typeStats) ? max(array_column((array) $typeStats, 'income')) : 1;
     $maxType     = $maxType ?: 1;
 @endphp
 
 {{-- ── Top stat cards ── --}}
 <div class="stats-row">
     <div class="stat-card teal">
-        <div class="sc-label">Жами Кредит (Приход)</div>
-        <div class="sc-value">{{ number_format($totalCredit / 1000000, 1, '.', ' ') }} млн</div>
-        <div class="sc-sub">сўм</div>
+        <div class="sc-label">Жами Приход (АПЗ)</div>
+        <div class="sc-value">{{ number_format($totalIncome / 1000000, 1, '.', ' ') }} млн</div>
+        <div class="sc-sub">сўм &middot; {{ number_format($totalRecords) }} та йозув</div>
     </div>
     <div class="stat-card blue">
-        <div class="sc-label">Жами Дебет (Расход)</div>
-        <div class="sc-value">{{ number_format($totalDebit / 1000000, 1, '.', ' ') }} млн</div>
-        <div class="sc-sub">сўм</div>
+        <div class="sc-label">Жами Шартномалар</div>
+        <div class="sc-value">{{ number_format($totalContracts) }}</div>
+        <div class="sc-sub">Фаол: {{ $activeC }} &middot; Якун: {{ $completedC }} &middot; Бекор: {{ $cancelledC }}</div>
     </div>
     <div class="stat-card green">
-        <div class="sc-label">Жами Йозувлар</div>
-        <div class="sc-value">{{ number_format($totalRecords) }}</div>
-        <div class="sc-sub">{{ $uDistricts }} туман · {{ $uTypes }} тур</div>
+        <div class="sc-label">Шартнома умумий қиймати</div>
+        <div class="sc-value">{{ number_format($totalPlanValue / 1000000, 1, '.', ' ') }} млн</div>
+        <div class="sc-sub">сўм (режа-жадвал)</div>
     </div>
     <div class="stat-card orange">
-        <div class="sc-label">{{ $lastMonthLabel }} (Ўтган ой)</div>
-        <div class="sc-value">{{ number_format($lmCredit / 1000000, 1, '.', ' ') }} млн</div>
-        <div class="sc-sub">{{ number_format($lmRecords) }} та йозув</div>
+        <div class="sc-label">Туманлар сони</div>
+        <div class="sc-value">{{ $uDistricts }}</div>
+        <div class="sc-sub">Уникал шартномалар: {{ $uContracts }}</div>
     </div>
-    <div class="stat-card {{ $deltaUp ? 'teal' : 'red' }}">
-        <div class="sc-label">{{ $thisMonthLabel }} (Жорий ой)</div>
-        <div class="sc-value">{{ number_format($tmCredit / 1000000, 1, '.', ' ') }} млн</div>
-        <span class="sc-delta {{ $deltaUp ? 'delta-up' : 'delta-down' }}">
-            {{ $deltaUp ? '▲' : '▼' }} {{ number_format(abs($delta), 1) }}%
-            ўтган ойга нисбатан
-        </span>
+    <div class="stat-card {{ $totalIncome >= $totalPlanValue ? 'teal' : 'red' }}">
+        <div class="sc-label">Умумий бажарилиш</div>
+        <div class="sc-value">{{ $totalPlanValue > 0 ? number_format($totalIncome / $totalPlanValue * 100, 1) : 0 }}%</div>
+        <div class="sc-sub">факт / режа</div>
     </div>
 </div>
 
@@ -209,17 +200,16 @@
     {{-- Monthly Table --}}
     <div class="tbl-block">
         <div class="tbl-block-header">
-            Ойлик статистика
-            <span class="sub">Охирги 24 ой</span>
+            Ойлик тушум
+            <span class="sub">Охирги 18 ой</span>
         </div>
-        <div style="overflow-x:auto; max-height: 400px; overflow-y:auto;">
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
             <table class="inline-table">
                 <thead>
                     <tr>
                         <th>Йил</th>
                         <th>Ой</th>
-                        <th class="num">Кредит (сўм)</th>
-                        <th class="num">Дебет (сўм)</th>
+                        <th class="num">Приход (млн)</th>
                         <th class="num">Сони</th>
                     </tr>
                 </thead>
@@ -228,12 +218,11 @@
                         <tr>
                             <td><span class="month-badge">{{ $stat->year }}</span></td>
                             <td class="name">{{ $stat->month }}</td>
-                            <td class="num">{{ number_format($stat->total_credit / 1000000, 2, '.', ' ') }} млн</td>
-                            <td class="num">{{ number_format($stat->total_debit / 1000000, 2, '.', ' ') }} млн</td>
-                            <td class="cnt">{{ number_format($stat->count) }}</td>
+                            <td class="num">{{ number_format($stat->income, 2, '.', ' ') }}</td>
+                            <td class="cnt">{{ number_format($stat->cnt) }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
+                        <tr><td colspan="4" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -243,28 +232,28 @@
     {{-- District Table --}}
     <div class="tbl-block">
         <div class="tbl-block-header">
-            Туманлар бўйича (Top 20)
-            <span class="sub">Кредит бўйича тартибланган</span>
+            Туманлар бўйича
+            <span class="sub">Приход бўйича</span>
         </div>
-        <div style="overflow-x:auto; max-height: 400px; overflow-y:auto;">
+        <div style="overflow-x:auto;max-height:400px;overflow-y:auto;">
             <table class="inline-table">
                 <thead>
                     <tr>
                         <th>Туман</th>
-                        <th class="num">Кредит</th>
+                        <th class="num">Приход (млн)</th>
                         <th class="num">Сони</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($districtStats as $stat)
-                        @php $pct = $maxDistrict > 0 ? ($stat->total_credit / $maxDistrict * 100) : 0; @endphp
+                        @php $pct = $maxDistrict > 0 ? ($stat->income / $maxDistrict * 100) : 0; @endphp
                         <tr>
                             <td class="name">
                                 {{ $stat->district }}
                                 <div class="bar-wrap"><div class="bar-fill" style="width:{{ $pct }}%"></div></div>
                             </td>
-                            <td class="num">{{ number_format($stat->total_credit / 1000000, 1, '.', ' ') }} млн</td>
-                            <td class="cnt">{{ number_format($stat->count) }}</td>
+                            <td class="num">{{ number_format($stat->income, 1, '.', ' ') }}</td>
+                            <td class="cnt">{{ number_format($stat->cnt) }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="3" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
@@ -275,42 +264,83 @@
     </div>
 </div>
 
+{{-- ── Plan vs Fact by district ── --}}
+<div class="tbl-block">
+    <div class="tbl-block-header">
+        План — Факт (Туманлар бўйича)
+        <span class="sub">Шартнома қиймати vs Тушум (млн.сўм)</span>
+    </div>
+    <div style="overflow-x:auto;">
+        <table class="inline-table">
+            <thead>
+                <tr>
+                    <th>Туман</th>
+                    <th class="num">План</th>
+                    <th class="num">Факт</th>
+                    <th class="num">Бажарилиш</th>
+                    <th style="width:160px;">Прогресс</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($planFact as $pf)
+                @php
+                    $pct = $pf->plan_total > 0 ? min(round($pf->fact_total / $pf->plan_total * 100), 100) : 0;
+                    $pctReal = $pf->plan_total > 0 ? round($pf->fact_total / $pf->plan_total * 100, 1) : 0;
+                @endphp
+                <tr>
+                    <td class="name">{{ $pf->district }}</td>
+                    <td class="num">{{ number_format($pf->plan_total, 1, '.', ' ') }}</td>
+                    <td class="num" style="color:#0a8a2e;">{{ number_format($pf->fact_total, 1, '.', ' ') }}</td>
+                    <td class="num" style="color:{{ $pf->plan_total > $pf->fact_total ? '#e63260' : '#0a8a2e' }};">
+                        {{ number_format($pf->plan_total - $pf->fact_total, 1, '.', ' ') }}
+                    </td>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <div class="bar-wrap" style="flex:1;"><div class="bar-fill" style="width:{{ $pct }}%;"></div></div>
+                            <span style="font-size:.72rem;color:#6e788b;white-space:nowrap;">{{ $pctReal }}%</span>
+                        </div>
+                    </td>
+                </tr>
+                @empty
+                    <tr><td colspan="5" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
 {{-- ── Payment types ── --}}
 <div class="tbl-block">
     <div class="tbl-block-header">
         Тўлов турлари бўйича
-        <span class="sub">Барча турлар</span>
+        <span class="sub">АПЗ / Пеня / Қайтариш</span>
     </div>
     <div style="overflow-x:auto;">
         <table class="inline-table">
             <thead>
                 <tr>
                     <th>Тури</th>
-                    <th class="num">Кредит (сўм)</th>
-                    <th class="num">Дебет (сўм)</th>
+                    <th class="num">Приход (млн)</th>
                     <th class="num">Сони</th>
-                    <th style="width:180px;">Улуш</th>
+                    <th style="width:160px;">Улуш</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($typeStats as $stat)
-                    @php $pct = $maxType > 0 ? ($stat->total_credit / $maxType * 100) : 0; @endphp
+                    @php $pct = $maxType > 0 ? ($stat->income / $maxType * 100) : 0; @endphp
                     <tr>
                         <td class="name">{{ $stat->type ?? '—' }}</td>
-                        <td class="num">{{ number_format($stat->total_credit / 1000000, 2, '.', ' ') }} млн</td>
-                        <td class="num">{{ number_format($stat->total_debit / 1000000, 2, '.', ' ') }} млн</td>
-                        <td class="cnt">{{ number_format($stat->count) }}</td>
+                        <td class="num">{{ number_format($stat->income, 2, '.', ' ') }}</td>
+                        <td class="cnt">{{ number_format($stat->cnt) }}</td>
                         <td>
                             <div style="display:flex;align-items:center;gap:8px;">
-                                <div class="bar-wrap" style="flex:1;">
-                                    <div class="bar-fill" style="width:{{ $pct }}%; background:#1471f0;"></div>
-                                </div>
-                                <span style="font-size:0.72rem;color:#6e788b;white-space:nowrap;">{{ number_format($pct, 0) }}%</span>
+                                <div class="bar-wrap" style="flex:1;"><div class="bar-fill" style="width:{{ $pct }}%;background:#1471f0;"></div></div>
+                                <span style="font-size:.72rem;color:#6e788b;white-space:nowrap;">{{ number_format($pct, 0) }}%</span>
                             </div>
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
+                    <tr><td colspan="4" style="text-align:center;padding:30px;color:#aab0bb;">Маълумот йўқ</td></tr>
                 @endforelse
             </tbody>
         </table>

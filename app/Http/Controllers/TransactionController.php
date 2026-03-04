@@ -2,48 +2,46 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
 class TransactionController extends Controller
 {
-    // Report caches: 1 hour (reports don't change mid-session)
-    const CACHE_REPORT = 3600;
-    // Filter/stats caches: 15 minutes
-    const CACHE_FILTERS = 900;
-    /**
-     * Display a listing of transactions (public homepage)
-     */
+    const CACHE_REPORT  = 3600;   // 1 hour
+    const CACHE_FILTERS = 900;    // 15 minutes
+
+    // ──────────────────────────────────────────────────────────────────────
+    // APZ PAYMENTS LIST  (was: index)
+    // ──────────────────────────────────────────────────────────────────────
     public function index(Request $request)
     {
-        // --- Build raw WHERE clause with bindings (Query Builder, no Eloquent hydration) ---
-        $where   = [];
-        $params  = [];
-        $allowedSorts = ['id', 'date', 'district', 'type', 'flow', 'amount'];
-        $sortField    = in_array($request->sort, $allowedSorts) ? $request->sort : 'id';
+        $allowedSorts = ['p.id', 'p.payment_date', 'p.district', 'p.type', 'p.flow', 'p.amount'];
+        $sortField    = in_array('p.' . $request->sort, $allowedSorts) ? 'p.' . $request->sort : 'p.id';
         $sortDir      = $request->dir === 'asc' ? 'ASC' : 'DESC';
 
-        if ($request->filled('district'))  { $where[] = 'district = ?';        $params[] = $request->district; }
-        if ($request->filled('year'))      { $where[] = 'year = ?';             $params[] = $request->year; }
-        if ($request->filled('month'))     { $where[] = 'month = ?';            $params[] = $request->month; }
-        if ($request->filled('type'))      { $where[] = 'type = ?';             $params[] = $request->type; }
-        if ($request->filled('date_from')) { $where[] = 'date >= ?';            $params[] = $request->date_from; }
-        if ($request->filled('date_to'))   { $where[] = 'date <= ?';            $params[] = $request->date_to; }
+        $where  = [];
+        $params = [];
 
+        if ($request->filled('district'))  { $where[] = 'p.district = ?';      $params[] = $request->district; }
+        if ($request->filled('year'))      { $where[] = 'p.year = ?';           $params[] = $request->year; }
+        if ($request->filled('month'))     { $where[] = 'p.month = ?';          $params[] = $request->month; }
+        if ($request->filled('type'))      { $where[] = 'p.type = ?';           $params[] = $request->type; }
+        if ($request->filled('date_from')) { $where[] = 'p.payment_date >= ?';  $params[] = $request->date_from; }
+        if ($request->filled('date_to'))   { $where[] = 'p.payment_date <= ?';  $params[] = $request->date_to; }
         if ($request->filled('search')) {
             $q = '%' . $request->search . '%';
-            // Use FULLTEXT if available, else LIKE (FULLTEXT migration runs separately)
-            $where[] = '(district LIKE ? OR type LIKE ? OR payment_purpose LIKE ?)';
-            $params[] = $q; $params[] = $q; $params[] = $q;
+            $where[] = '(p.district LIKE ? OR p.company_name LIKE ? OR p.payment_purpose LIKE ? OR c.investor_name LIKE ?)';
+            $params[] = $q; $params[] = $q; $params[] = $q; $params[] = $q;
         }
 
-        $whereSQL = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+        $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-        // COUNT(*) via a fast covering query (no SELECT *)
         $total = DB::selectOne(
-            "SELECT COUNT(*) as cnt FROM transactions {$whereSQL}",
+            "SELECT COUNT(*) as cnt
+             FROM apz_payments p
+             LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
+             {$whereSQL}",
             $params
         )->cnt;
 
@@ -51,26 +49,29 @@ class TransactionController extends Controller
         $perPage = 25;
         $offset  = ($page - 1) * $perPage;
 
-        // Fetch only needed columns — payment_purpose needed for drawer tooltip
         $rows = DB::select(
-            "SELECT id, date, district, type, flow, amount, year, month, payment_purpose
-             FROM transactions
+            "SELECT p.id, p.payment_date, p.contract_id, p.district, p.type, p.flow,
+                    p.amount, p.year, p.month, p.company_name, p.inn,
+                    p.payment_purpose, p.debit_amount, p.credit_amount,
+                    c.investor_name, c.contract_number, c.contract_status
+             FROM apz_payments p
+             LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
              {$whereSQL}
              ORDER BY {$sortField} {$sortDir}
              LIMIT {$perPage} OFFSET {$offset}",
             $params
         );
 
-        // Manual LengthAwarePaginator (avoids Eloquent overhead on 10M rows)
         $transactions = new \Illuminate\Pagination\LengthAwarePaginator(
             $rows, $total, $perPage, $page,
             ['path' => $request->url(), 'query' => $request->query()]
         );
 
-        // Filter dropdown values — cached 15 min, single batched raw query
-        $filters = Cache::remember('transaction_filters', self::CACHE_FILTERS, function () {
+        $filters = Cache::remember('apz_filters', self::CACHE_FILTERS, function () {
             $rows = DB::select(
-                "SELECT DISTINCT district, year, month, type FROM transactions ORDER BY district, year"
+                'SELECT DISTINCT p.district, p.year, p.month, p.type
+                 FROM apz_payments p
+                 ORDER BY p.district, p.year'
             );
             $d = $y = $m = $t = [];
             foreach ($rows as $r) {
@@ -87,14 +88,13 @@ class TransactionController extends Controller
             ];
         });
 
-        // Global stats — single raw query, cached
-        $summary = Cache::remember('transaction_summary', self::CACHE_FILTERS, function () {
+        $summary = Cache::remember('apz_summary', self::CACHE_FILTERS, function () {
             return (array) DB::selectOne(
                 "SELECT
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_debit,
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_income,
+                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_expense,
                     COUNT(*) as total_records
-                 FROM transactions"
+                 FROM apz_payments"
             );
         });
 
@@ -108,319 +108,386 @@ class TransactionController extends Controller
         ]);
     }
 
-    /**
-     * Display dashboard with charts and statistics
-     */
+    // ──────────────────────────────────────────────────────────────────────
+    // DASHBOARD  — APZ overview with charts
+    // ──────────────────────────────────────────────────────────────────────
     public function dashboard(Request $request)
     {
-        $viewData = Cache::remember('dashboard_data', self::CACHE_REPORT, function () {
-            $thisMonthStart = now()->startOfMonth()->toDateString();
-            $lastMonthStart = now()->subMonth()->startOfMonth()->toDateString();
-            $lastMonthEnd   = now()->subMonth()->endOfMonth()->toDateString();
+        $viewData = Cache::remember('apz_dashboard_data', self::CACHE_REPORT, function () {
 
-            // SINGLE batch query: overall + this month + last month in one pass
-            // Uses covering index (flow, amount)
+            // Overall stats
             $global = DB::selectOne("
                 SELECT
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END)                                        as total_credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END)                                        as total_debit,
-                    COUNT(*)                                                                                    as total_records,
-                    COUNT(DISTINCT district)                                                                    as unique_districts,
-                    COUNT(DISTINCT type)                                                                        as unique_types,
-                    SUM(CASE WHEN flow='Приход' AND date >= ? THEN amount ELSE 0 END)                          as this_credit,
-                    SUM(CASE WHEN flow='Расход' AND date >= ? THEN amount ELSE 0 END)                          as this_debit,
-                    SUM(CASE WHEN date >= ? THEN 1 ELSE 0 END)                                                 as this_records,
-                    SUM(CASE WHEN flow='Приход' AND date >= ? AND date <= ? THEN amount ELSE 0 END)            as last_credit,
-                    SUM(CASE WHEN flow='Расход' AND date >= ? AND date <= ? THEN amount ELSE 0 END)            as last_debit,
-                    SUM(CASE WHEN date >= ? AND date <= ? THEN 1 ELSE 0 END)                                   as last_records
-                FROM transactions
-            ", [
-                $thisMonthStart, $thisMonthStart, $thisMonthStart,
-                $lastMonthStart, $lastMonthEnd,
-                $lastMonthStart, $lastMonthEnd,
-                $lastMonthStart, $lastMonthEnd,
-            ]);
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_income,
+                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_expense,
+                    COUNT(*) as total_records,
+                    COUNT(DISTINCT district) as unique_districts,
+                    COUNT(DISTINCT contract_id) as unique_contracts
+                FROM apz_payments
+            ");
 
-            // Monthly stats — last 24 months, raw SQL, uses (date, flow, amount) covering index
+            // Contract stats
+            $contractStats = DB::selectOne("
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN contract_status = 'Yakunlagan' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN contract_status = 'Bekor qilingan' THEN 1 ELSE 0 END) as cancelled,
+                    SUM(CASE WHEN (contract_status IS NULL OR contract_status = '') THEN 1 ELSE 0 END) as active,
+                    SUM(contract_value) as total_value
+                FROM apz_contracts
+            ");
+
+            // Monthly income — last 18 months
             $monthlyStats = DB::select("
                 SELECT year, month,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_debit,
-                    COUNT(*) as count
-                FROM transactions
-                WHERE date >= DATE_SUB(CURDATE(), INTERVAL 24 MONTH)
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
+                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) / 1000000 as expense,
+                    COUNT(*) as cnt
+                FROM apz_payments
+                WHERE payment_date >= DATE_SUB(CURDATE(), INTERVAL 18 MONTH)
                 GROUP BY year, month
                 ORDER BY year DESC,
                     FIELD(month,'Январь','Февраль','Март','Апрель','Май','Июнь',
                                 'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь') DESC
-                LIMIT 24
+                LIMIT 18
             ");
 
-            // District stats top 20 — uses (district, flow, amount) covering index
+            // District stats
             $districtStats = DB::select("
                 SELECT district,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_debit,
-                    COUNT(*) as count
-                FROM transactions
-                WHERE district IS NOT NULL
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
+                    COUNT(*) as cnt
+                FROM apz_payments
+                WHERE district IS NOT NULL AND district != ''
                 GROUP BY district
-                ORDER BY total_credit DESC
-                LIMIT 20
+                ORDER BY income DESC
             ");
 
-            // Type stats — uses (district, flow, type, amount) covering index
+            // Payment type breakdown
             $typeStats = DB::select("
                 SELECT type,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as total_debit,
-                    COUNT(*) as count
-                FROM transactions
-                WHERE type IS NOT NULL
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
+                    COUNT(*) as cnt
+                FROM apz_payments
+                WHERE type IS NOT NULL AND type != ''
                 GROUP BY type
-                ORDER BY total_credit DESC
+                ORDER BY income DESC
             ");
 
-            $uzMonths = [
-                1=>'Январь', 2=>'Феврал', 3=>'Март', 4=>'Апрел', 5=>'Май', 6=>'Июнь',
-                7=>'Июль', 8=>'Август', 9=>'Сентябрь', 10=>'Октябрь', 11=>'Ноябрь', 12=>'Декабрь'
-            ];
+            // Plan vs Fact — contracts with total planned vs total paid (joined)
+            $planFact = DB::select("
+                SELECT c.district,
+                    SUM(c.contract_value) / 1000000 as plan_total,
+                    SUM(COALESCE(paid.total_paid, 0)) / 1000000 as fact_total
+                FROM apz_contracts c
+                LEFT JOIN (
+                    SELECT contract_id, SUM(amount) as total_paid
+                    FROM apz_payments
+                    WHERE flow = 'Приход'
+                    GROUP BY contract_id
+                ) paid ON paid.contract_id = c.contract_id
+                WHERE c.district IS NOT NULL AND c.district != ''
+                GROUP BY c.district
+                ORDER BY plan_total DESC
+            ");
 
-            return [
-                'monthlyStats'   => $monthlyStats,
-                'districtStats'  => $districtStats,
-                'typeStats'      => $typeStats,
-                'summary'        => [
-                    'total_credit'     => $global->total_credit,
-                    'total_debit'      => $global->total_debit,
-                    'total_records'    => $global->total_records,
-                    'unique_districts' => $global->unique_districts,
-                    'unique_types'     => $global->unique_types,
-                ],
-                'thisMonthStats' => [
-                    'credit'        => $global->this_credit,
-                    'debit'         => $global->this_debit,
-                    'total_records' => $global->this_records,
-                ],
-                'lastMonthStats' => [
-                    'credit'        => $global->last_credit,
-                    'debit'         => $global->last_debit,
-                    'total_records' => $global->last_records,
-                ],
-                'lastMonthLabel' => $uzMonths[now()->subMonth()->month] . ' ' . now()->subMonth()->year,
-                'thisMonthLabel' => $uzMonths[now()->month] . ' ' . now()->year,
-            ];
+            return compact(
+                'global', 'contractStats',
+                'monthlyStats', 'districtStats', 'typeStats', 'planFact'
+            );
         });
 
         return view('transactions.dashboard', $viewData);
     }
 
-    /**
-     * Display summary report by districts and payment types (Свод)
-     */
+    // ──────────────────────────────────────────────────────────────────────
+    // SUMMARY — APZ payments by district and type  (Свод)
+    // ──────────────────────────────────────────────────────────────────────
     public function summary(Request $request)
     {
-        $viewData = Cache::remember('summary_report_data', self::CACHE_REPORT, function () {
-            // Single raw SQL — fully covered by (district, flow, type, amount) index
-            // MySQL evaluates CASE WHEN against the covering index without touching the data file
-            $rows = DB::select("
+        $year = $request->filled('year') ? (int) $request->year : null;
+
+        $cacheKey = 'apz_summary_report_' . ($year ?? 'all');
+
+        $viewData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($year) {
+            $yearCond = $year ? 'AND p.year = ' . $year : '';
+
+            // ── 1. Payments by district (Cyrillic names from fakt-apz) ─────────
+            $payRows = DB::select("
                 SELECT
-                    district,
-                    SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)'   AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_10_safe_city,
-                    SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_35_auto,
-                    SUM(CASE WHEN type='Жарима 5% (1 йил ичида)'        AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_5_within_year,
-                    SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)'   AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_10_after_year,
-                    SUM(CASE WHEN type='Реклама учун тўлов 20%'         AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as ad_20
-                FROM transactions
-                WHERE district IS NOT NULL
-                GROUP BY district
-                ORDER BY district
+                    p.district,
+                    COUNT(DISTINCT p.contract_id)                                                    as contract_count,
+                    SUM(CASE WHEN p.type = 'АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz_payment,
+                    SUM(CASE WHEN p.type = 'Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as penalty,
+                    SUM(CASE WHEN p.type = 'АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as refund,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000                  as total_income
+                FROM apz_payments p
+                WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
+                GROUP BY p.district
+                ORDER BY total_income DESC
             ");
 
-            $totals = [
-                'grand_total' => 0, 'fines_total' => 0,
-                'fine_10_safe_city' => 0, 'fine_35_auto' => 0,
-                'fine_5_within_year' => 0, 'fine_10_after_year' => 0, 'ad_20' => 0,
-            ];
-            $summaryData = [];
+            // ── 2. Plan vs Fact ────────────────────────────────────────────
+            //   • Use MAX(contract_value) per contract_id first to avoid
+            //     inflating plan when one contract has many payment rows.
+            //   • Group by p.district (Cyrillic) so keys match payment data.
+            $planFactRows = DB::select("
+                SELECT
+                    p.district,
+                    SUM(c_plan.plan) / 1000000                              as plan_value,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                FROM apz_payments p
+                INNER JOIN (
+                    SELECT contract_id, MAX(contract_value) as plan
+                    FROM apz_contracts GROUP BY contract_id
+                ) c_plan ON c_plan.contract_id = p.contract_id
+                WHERE p.district IS NOT NULL AND p.district != ''
+                GROUP BY p.district
+                ORDER BY p.district
+            ");
 
-            foreach ($rows as $row) {
-                $f10  = (float) $row->fine_10_safe_city;
-                $f35  = (float) $row->fine_35_auto;
-                $f5   = (float) $row->fine_5_within_year;
-                $f10a = (float) $row->fine_10_after_year;
-                $ad20 = (float) $row->ad_20;
-                $ft   = $f10 + $f35 + $f5 + $f10a;
-                $gt   = $ft + $ad20;
-
-                $summaryData[] = [
-                    'district'           => $row->district,
-                    'grand_total'        => $gt,
-                    'fines_total'        => $ft,
-                    'fine_10_safe_city'  => $f10,
-                    'fine_35_auto'       => $f35,
-                    'fine_5_within_year' => $f5,
-                    'fine_10_after_year' => $f10a,
-                    'ad_20'              => $ad20,
+            $planFact = [];
+            foreach ($planFactRows as $r) {
+                $plan = (float) $r->plan_value;
+                $fact = (float) $r->fact_paid;
+                $planFact[$r->district] = [
+                    'plan'    => $plan,
+                    'fact'    => $fact,
+                    'pct'     => $plan > 0 ? round($fact / $plan * 100, 1) : 0,
+                    'balance' => $plan - $fact,
                 ];
-                $totals['grand_total']        += $gt;
-                $totals['fines_total']         += $ft;
-                $totals['fine_10_safe_city']   += $f10;
-                $totals['fine_35_auto']         += $f35;
-                $totals['fine_5_within_year']   += $f5;
-                $totals['fine_10_after_year']   += $f10a;
-                $totals['ad_20']                += $ad20;
             }
 
-            // Balance history last 3 months — (date, flow, amount) covering index
-            $balanceHistory = DB::select("
+            // ── 3. Build summaryData + totals ──────────────────────────────────
+            $totals = ['apz_payment'=>0,'penalty'=>0,'refund'=>0,'total_income'=>0,'contract_count'=>0];
+            $summaryData = [];
+            foreach ($payRows as $r) {
+                $summaryData[] = [
+                    'district'       => $r->district,
+                    'contract_count' => (int)   $r->contract_count,
+                    'apz_payment'    => (float)  $r->apz_payment,
+                    'penalty'        => (float)  $r->penalty,
+                    'refund'         => (float)  $r->refund,
+                    'total_income'   => (float)  $r->total_income,
+                ];
+                $totals['apz_payment']   += (float) $r->apz_payment;
+                $totals['penalty']       += (float) $r->penalty;
+                $totals['refund']        += (float) $r->refund;
+                $totals['total_income']  += (float) $r->total_income;
+                $totals['contract_count']+= (int)   $r->contract_count;
+            }
+
+            // ── 4. Year → Month → Day breakdown (for drill-down) ──────────────
+            $drillRows = DB::select("
                 SELECT
-                    DATE_FORMAT(date, '%Y-%m') as month_key,
-                    DATE_FORMAT(MAX(date), '%d.%m.%Y') as date_formatted,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as total,
-                    SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)'   AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_10_safe_city,
-                    SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_35_auto,
-                    SUM(CASE WHEN type='Жарима 5% (1 йил ичида)'        AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_5_within_year,
-                    SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)'   AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as fine_10_after_year,
-                    SUM(CASE WHEN type='Реклама учун тўлов 20%'         AND flow='Приход' THEN amount ELSE 0 END) / 1000000 as ad_20
-                FROM transactions
-                WHERE date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
-                GROUP BY month_key
-                ORDER BY month_key DESC
-                LIMIT 3
+                    p.year,
+                    p.month,
+                    DATE(p.payment_date)                                                             as pay_day,
+                    p.district,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000                  as income,
+                    SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz,
+                    SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as pen,
+                    SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as ref,
+                    COUNT(DISTINCT p.contract_id)                                                    as cnt
+                FROM apz_payments p
+                WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
+                GROUP BY p.year, p.month, pay_day, p.district
+                ORDER BY p.year, MIN(p.payment_date), p.district
             ");
 
-            return compact('summaryData', 'totals', 'balanceHistory');
-        });
+            // Organise: drill[year][month][day][district] = row
+            $drill = [];
+            $monthOrder = ['Январь'=>1,'Февраль'=>2,'Март'=>3,'Апрель'=>4,'Май'=>5,'Июнь'=>6,
+                           'Июль'=>7,'Август'=>8,'Сентябрь'=>9,'Октябрь'=>10,'Ноябрь'=>11,'Декабрь'=>12];
+            foreach ($drillRows as $r) {
+                $drill[$r->year][$r->month][$r->pay_day][$r->district] = $r;
+            }
 
-        return view('transactions.summary', $viewData);
-    }
+            // ── 5. Fact totals by year+district and year+month+district ─────────
+            //    (plan is fixed per district; fact sliced by time period)
+            $pfYearRows = DB::select("
+                SELECT p.year, p.district,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                FROM apz_payments p
+                WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
+                GROUP BY p.year, p.district
+            ");
+            $pfYear = []; // pfYear[year][district]
+            foreach ($pfYearRows as $r) {
+                $pfYear[$r->year][$r->district] = (float) $r->fact_paid;
+            }
 
-    /**
-     * Display summary report 2 - by years and months (Свод 2)
-     */
-    public function summary2(Request $request)
-    {
-        $viewData = Cache::remember('summary2_report_data', self::CACHE_REPORT, function () {
-            $months = [
-                1 => 'Январь', 2 => 'Февраль', 3 => 'Март', 4 => 'Апрель',
-                5 => 'Май', 6 => 'Июнь', 7 => 'Июль', 8 => 'Август',
-                9 => 'Сентябрь', 10 => 'Октябрь', 11 => 'Ноябрь', 12 => 'Декабрь'
-            ];
+            $pfMonthRows = DB::select("
+                SELECT p.year, p.month, p.district,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                FROM apz_payments p
+                WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
+                GROUP BY p.year, p.month, p.district
+            ");
+            $pfMonth = []; // pfMonth[year][month][district]
+            foreach ($pfMonthRows as $r) {
+                $pfMonth[$r->year][$r->month][$r->district] = (float) $r->fact_paid;
+            }
 
-            // Get distinct years — raw, no Eloquent Model instantiation
-            $dbYears = DB::table('transactions')
-                ->selectRaw('DISTINCT YEAR(date) as y')
-                ->whereNotNull('date')
-                ->orderBy('y')
-                ->pluck('y')
-                ->map(fn ($y) => (int) $y)
+            // ── 6. Parse payment_schedule → planSchedule[district][YYYY-MM-DD] += amount ──
+            //    Maps planned due-dates (from grafik_apz) per district.
+            //    We join via contract_id so district key = Cyrillic p.district.
+            $contracts = DB::table('apz_contracts')
+                ->whereNotNull('payment_schedule')
+                ->where('payment_schedule', '!=', 'null')
+                ->where('payment_schedule', '!=', '{}')
+                ->where('payment_schedule', '!=', '[]')
+                ->get(['contract_id', 'payment_schedule']);
+
+            // Build district map: contract_id => Cyrillic district (from payments)
+            $contractDistrict = DB::table('apz_payments')
+                ->whereNotNull('district')->where('district', '!=', '')
+                ->groupBy('contract_id')
+                ->selectRaw('contract_id, MAX(district) as district')
+                ->pluck('district', 'contract_id')
                 ->toArray();
 
-            $currentYear = (int) now()->year;
-            if (!in_array($currentYear, $dbYears)) {
-                $dbYears[] = $currentYear;
-                sort($dbYears);
-            }
-            $years = $dbYears;
+            // Russian month names lookup (for planSchedule month key)
+            $ruMonths = [1=>'Январь',2=>'Февраль',3=>'Март',4=>'Апрель',
+                         5=>'Май',6=>'Июнь',7=>'Июль',8=>'Август',
+                         9=>'Сентябрь',10=>'Октябрь',11=>'Ноябрь',12=>'Декабрь'];
 
-            // SINGLE query for all monthly data — uses (date, flow, amount) covering index
-            // Build a PHP keyed lookup: ['year:month:flow'] => total
-            // Eliminates the O(N×M×2) ->first() scan from the original code
-            $rawMonthly = DB::select("
-                SELECT
-                    YEAR(date)  as yr,
-                    MONTH(date) as mn,
-                    flow,
-                    SUM(amount) / 1000000 as total
-                FROM transactions
-                WHERE flow IN ('Приход', 'Расход')
-                  AND YEAR(date) IN (" . implode(',', $years) . ")
-                GROUP BY yr, mn, flow
-            ");
-
-            // Key the result set for O(1) lookups instead of O(N) collection scans
-            $lookup = [];
-            foreach ($rawMonthly as $r) {
-                $lookup["{$r->yr}:{$r->mn}:{$r->flow}"] = (float) $r->total;
-            }
-
-            $yearlyData = [];
-            foreach ($years as $year) {
-                $yearlyData[$year] = ['credit' => [], 'debit' => [], 'credit_total' => 0, 'debit_total' => 0];
-                foreach ($months as $mn => $name) {
-                    $c = $lookup["{$year}:{$mn}:Приход"] ?? 0;
-                    $d = $lookup["{$year}:{$mn}:Расход"] ?? 0;
-                    $yearlyData[$year]['credit'][$mn]  = $c;
-                    $yearlyData[$year]['debit'][$mn]   = $d;
-                    $yearlyData[$year]['credit_total'] += $c;
-                    $yearlyData[$year]['debit_total']  += $d;
+            // planSchedule[district][year][month][YYYY-MM-DD] += mln
+            $planSchedule = [];
+            foreach ($contracts as $c) {
+                $sched = json_decode($c->payment_schedule, true);
+                if (!is_array($sched) || empty($sched)) continue;
+                $dist = $contractDistrict[$c->contract_id] ?? null;
+                if (!$dist) continue;
+                foreach ($sched as $rawDate => $amountSom) {
+                    // Normalize date: "7/31/2024" or "2024-07-31" -> Carbon
+                    try {
+                        $dt = \Carbon\Carbon::parse($rawDate);
+                    } catch (\Exception $e) {
+                        continue;
+                    }
+                    $yy  = $dt->year;
+                    $mm  = $ruMonths[$dt->month];
+                    $day = $dt->format('Y-m-d');
+                    $planSchedule[$dist][$yy][$mm][$day] = ($planSchedule[$dist][$yy][$mm][$day] ?? 0) + $amountSom / 1000000;
                 }
             }
 
-            // District summary — (district, flow, amount) covering index
-            $districtRows = DB::select("
-                SELECT district,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as credit,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) / 1000000 as debit
-                FROM transactions
-                WHERE district IS NOT NULL
-                GROUP BY district
-                ORDER BY district
-            ");
+            // ── 7. Available years ─────────────────────────────────────────────
+            $availableYears = DB::table('apz_payments')
+                ->selectRaw('DISTINCT year')->whereNotNull('year')->where('year','>',0)
+                ->orderBy('year','desc')->pluck('year')->toArray();
 
-            $districtSummary = [];
-            foreach ($districtRows as $r) {
-                $c = (float) $r->credit;
-                $d = (float) $r->debit;
-                $districtSummary[$r->district] = ['credit' => $c, 'debit' => $d, 'balance' => $c - $d];
-            }
-
-            return compact('yearlyData', 'districtSummary', 'years', 'months');
+            return compact('summaryData','totals','planFact','availableYears','drill','monthOrder','pfYear','pfMonth','planSchedule');
         });
 
+        $viewData['selectedYear'] = $year;
+        return view('transactions.summary', $viewData);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // SUMMARY2 — Plan vs Fact monthly timeline per contract
+    // ──────────────────────────────────────────────────────────────────────
+    public function summary2(Request $request)
+    {
+        $district = $request->filled('district') ? $request->district : null;
+        $status   = $request->filled('status')   ? $request->status   : null;
+
+        $cacheKey = 'apz_summary2_' . md5(($district ?? 'all') . '|' . ($status ?? 'all'));
+
+        $viewData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($district, $status) {
+
+            $cWhere = [];
+            if ($district) $cWhere[] = "c.district = " . DB::getPdo()->quote($district);
+            if ($status === 'active')    $cWhere[] = "(c.contract_status IS NULL OR c.contract_status = '')";
+            if ($status === 'completed') $cWhere[] = "c.contract_status = 'Yakunlagan'";
+            if ($status === 'cancelled') $cWhere[] = "c.contract_status = 'Bekor qilingan'";
+            $cSQL = $cWhere ? 'WHERE ' . implode(' AND ', $cWhere) : '';
+
+            // All contracts (filtered)
+            $contracts = DB::select("
+                SELECT c.id, c.contract_id, c.district, c.investor_name, c.inn,
+                       c.contract_number, c.contract_date, c.contract_status,
+                       c.contract_value, c.payment_terms, c.installments_count,
+                       c.payment_schedule,
+                       COALESCE(paid.total_paid, 0) as total_paid,
+                       COALESCE(paid.payment_count, 0) as payment_count
+                FROM apz_contracts c
+                LEFT JOIN (
+                    SELECT contract_id,
+                           SUM(amount)  as total_paid,
+                           COUNT(*)     as payment_count
+                    FROM apz_payments
+                    WHERE flow = 'Приход'
+                    GROUP BY contract_id
+                ) paid ON paid.contract_id = c.contract_id
+                {$cSQL}
+                ORDER BY c.contract_id
+            ");
+
+            // Totals
+            $grandPlan = $grandFact = 0;
+            foreach ($contracts as $c) {
+                $grandPlan += (float) $c->contract_value;
+                $grandFact += (float) $c->total_paid;
+            }
+
+            // Available districts & statuses for filter
+            $availableDistricts = DB::table('apz_contracts')
+                ->selectRaw('DISTINCT district')
+                ->whereNotNull('district')->where('district', '!=', '')
+                ->orderBy('district')
+                ->pluck('district')
+                ->toArray();
+
+            return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
+        });
+
+        $viewData['selectedDistrict'] = $district;
+        $viewData['selectedStatus']   = $status;
         return view('transactions.summary2', $viewData);
     }
 
-    /**
-     * Clear all report caches (call this after data import)
-     */
+    // ──────────────────────────────────────────────────────────────────────
+    // CACHE MANAGEMENT
+    // ──────────────────────────────────────────────────────────────────────
     public function clearCache()
     {
-        Cache::forget('transaction_filters');
-        Cache::forget('transaction_summary');
-        Cache::forget('summary_report_data');
-        Cache::forget('summary2_report_data');
-        Cache::forget('dashboard_data');
+        foreach (Cache::getStore() instanceof \Illuminate\Cache\ArrayStore
+            ? []
+            : ['apz_filters','apz_summary','apz_dashboard_data'] as $key) {
+            Cache::forget($key);
+        }
+        // Clear all apz_ prefixed keys reliably
+        $keys = [
+            'apz_filters', 'apz_summary', 'apz_dashboard_data',
+            'apz_summary_report_all',
+            'apz_summary2_' . md5('all|all'),
+        ];
+        foreach ($keys as $k) Cache::forget($k);
+        // Also clear year-specific summary caches
+        for ($y = 2024; $y <= 2030; $y++) {
+            Cache::forget('apz_summary_report_' . $y);
+        }
 
-        // JSON response for programmatic calls; redirect for form POST
         if (request()->expectsJson()) {
-            return response()->json(['message' => 'Cache cleared successfully']);
+            return response()->json(['message' => 'Cache cleared']);
         }
         return redirect()->route('admin.dashboard')
             ->with('cache_cleared', 'Kesh muvaffaqiyatli tozalandi.');
     }
 
-    /**
-     * Warm all report caches in background (call from scheduler or after import)
-     */
     public function warmCache()
     {
-        Cache::forget('dashboard_data');
-        Cache::forget('summary_report_data');
-        Cache::forget('summary2_report_data');
-        Cache::forget('transaction_filters');
-        Cache::forget('transaction_summary');
-
-        // Trigger rebuilds synchronously
+        $this->clearCache();
         $this->dashboard(request());
         $this->summary(request());
         $this->summary2(request());
 
         if (request()->expectsJson()) {
-            return response()->json(['message' => 'Cache warmed successfully']);
+            return response()->json(['message' => 'Cache warmed']);
         }
         return redirect()->route('admin.dashboard')
-            ->with('cache_cleared', 'Kesh qayta qurildi va issiq holatga keltirildi.');
+            ->with('cache_cleared', 'Kesh qayta qurildi.');
     }
 }

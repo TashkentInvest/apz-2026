@@ -562,7 +562,7 @@
                 <li>
                     <a href="{{ route('home') }}" class="{{ request()->routeIs('home') ? 'active' : '' }}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 13h8M8 17h8"/><path clip-rule="evenodd" stroke-linecap="round" stroke-linejoin="round" d="M6 3h9.172a2 2 0 011.414.586l2.828 2.828A2 2 0 0120 7.828V19a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2z"/><path stroke-linecap="round" stroke-linejoin="round" d="M20 8h-4a1 1 0 01-1-1V3M8 9h3"/></svg>
-                        Трансакциялар
+                        АПЗ Тўловлар
                     </a>
                 </li>
 
@@ -576,15 +576,15 @@
                 <li>
                     <a href="{{ route('summary') }}" class="{{ request()->routeIs('summary') ? 'active' : '' }}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        Свод (Ҳисобот)
+                        Свод (Туман)
                     </a>
                 </li>
-                {{-- <li>
+                <li>
                     <a href="{{ route('summary2') }}" class="{{ request()->routeIs('summary2') ? 'active' : '' }}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-                        Свод 2 (Йиллик)
+                        План—Факт (Шартнома)
                     </a>
-                </li> --}}
+                </li>
                 @endauth
 
                 @if(auth()->user()?->isAdmin())
