@@ -207,34 +207,36 @@ class TransactionController extends Controller
     {
         $year = $request->filled('year') ? (int) $request->year : null;
 
-        $cacheKey = 'apz_summary_report_' . ($year ?? 'all');
+        $cacheKey = 'apz_summary_v3_' . ($year ?? 'all');
 
         $viewData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($year) {
-            $yearCond = $year ? 'AND p.year = ' . $year : '';
+            $yearCond = $year ? 'AND p.year = ' . (int) $year : '';
 
-            // ── 1. Payments by district (Cyrillic names from fakt-apz) ─────────
+            $ruMonths = [
+                1=>'Январь', 2=>'Февраль', 3=>'Март',
+                4=>'Апрель', 5=>'Май', 6=>'Июнь',
+                7=>'Июль', 8=>'Август', 9=>'Сентябрь',
+                10=>'Октябрь', 11=>'Ноябрь', 12=>'Декабрь',
+            ];
+
+            // ── 1. District payment totals ──────────────────────────────────────
             $payRows = DB::select("
-                SELECT
-                    p.district,
-                    COUNT(DISTINCT p.contract_id)                                                    as contract_count,
-                    SUM(CASE WHEN p.type = 'АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz_payment,
-                    SUM(CASE WHEN p.type = 'Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as penalty,
-                    SUM(CASE WHEN p.type = 'АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as refund,
-                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000                  as total_income
+                SELECT p.district,
+                    COUNT(DISTINCT p.contract_id) as contract_count,
+                    SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz_payment,
+                    SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as penalty,
+                    SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as refund,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as total_income
                 FROM apz_payments p
                 WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
                 GROUP BY p.district
                 ORDER BY total_income DESC
             ");
 
-            // ── 2. Plan vs Fact ────────────────────────────────────────────
-            //   • Use MAX(contract_value) per contract_id first to avoid
-            //     inflating plan when one contract has many payment rows.
-            //   • Group by p.district (Cyrillic) so keys match payment data.
+            // ── 2. Plan per district (deduplicated by contract) ──────────────────
             $planFactRows = DB::select("
-                SELECT
-                    p.district,
-                    SUM(c_plan.plan) / 1000000                              as plan_value,
+                SELECT p.district,
+                    SUM(c_plan.plan)/1000000 as plan_value,
                     SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
                 FROM apz_payments p
                 INNER JOIN (
@@ -243,9 +245,7 @@ class TransactionController extends Controller
                 ) c_plan ON c_plan.contract_id = p.contract_id
                 WHERE p.district IS NOT NULL AND p.district != ''
                 GROUP BY p.district
-                ORDER BY p.district
             ");
-
             $planFact = [];
             foreach ($planFactRows as $r) {
                 $plan = (float) $r->plan_value;
@@ -258,7 +258,7 @@ class TransactionController extends Controller
                 ];
             }
 
-            // ── 3. Build summaryData + totals ──────────────────────────────────
+            // ── 3. Build summaryData + grand totals ───────────────────────────
             $totals = ['apz_payment'=>0,'penalty'=>0,'refund'=>0,'total_income'=>0,'contract_count'=>0];
             $summaryData = [];
             foreach ($payRows as $r) {
@@ -270,41 +270,34 @@ class TransactionController extends Controller
                     'refund'         => (float)  $r->refund,
                     'total_income'   => (float)  $r->total_income,
                 ];
-                $totals['apz_payment']   += (float) $r->apz_payment;
-                $totals['penalty']       += (float) $r->penalty;
-                $totals['refund']        += (float) $r->refund;
-                $totals['total_income']  += (float) $r->total_income;
-                $totals['contract_count']+= (int)   $r->contract_count;
+                $totals['apz_payment']    += (float) $r->apz_payment;
+                $totals['penalty']        += (float) $r->penalty;
+                $totals['refund']         += (float) $r->refund;
+                $totals['total_income']   += (float) $r->total_income;
+                $totals['contract_count'] += (int)   $r->contract_count;
             }
 
-            // ── 4. Year → Month → Day breakdown (for drill-down) ──────────────
-            $drillRows = DB::select("
-                SELECT
-                    p.year,
-                    p.month,
-                    DATE(p.payment_date)                                                             as pay_day,
-                    p.district,
-                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000                  as income,
+            // ── 4. Fact payments by year ─ month ─ day ─ district ──────────────
+            $factRows = DB::select("
+                SELECT p.year, p.month, DATE(p.payment_date) as pay_day, p.district,
+                    SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as income,
                     SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz,
                     SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as pen,
                     SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as ref,
-                    COUNT(DISTINCT p.contract_id)                                                    as cnt
+                    COUNT(DISTINCT p.contract_id) as cnt
                 FROM apz_payments p
                 WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
                 GROUP BY p.year, p.month, pay_day, p.district
                 ORDER BY p.year, MIN(p.payment_date), p.district
             ");
 
-            // Organise: drill[year][month][day][district] = row
-            $drill = [];
-            $monthOrder = ['Январь'=>1,'Февраль'=>2,'Март'=>3,'Апрель'=>4,'Май'=>5,'Июнь'=>6,
-                           'Июль'=>7,'Август'=>8,'Сентябрь'=>9,'Октябрь'=>10,'Ноябрь'=>11,'Декабрь'=>12];
-            foreach ($drillRows as $r) {
-                $drill[$r->year][$r->month][$r->pay_day][$r->district] = $r;
+            // factMap[year][month][day][district]
+            $factMap = [];
+            foreach ($factRows as $r) {
+                $factMap[$r->year][$r->month][$r->pay_day][$r->district] = $r;
             }
 
-            // ── 5. Fact totals by year+district and year+month+district ─────────
-            //    (plan is fixed per district; fact sliced by time period)
+            // ── 5. Fact totals by year+district and year+month+district ────────
             $pfYearRows = DB::select("
                 SELECT p.year, p.district,
                     SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
@@ -312,7 +305,7 @@ class TransactionController extends Controller
                 WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
                 GROUP BY p.year, p.district
             ");
-            $pfYear = []; // pfYear[year][district]
+            $pfYear = [];
             foreach ($pfYearRows as $r) {
                 $pfYear[$r->year][$r->district] = (float) $r->fact_paid;
             }
@@ -324,22 +317,17 @@ class TransactionController extends Controller
                 WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
                 GROUP BY p.year, p.month, p.district
             ");
-            $pfMonth = []; // pfMonth[year][month][district]
+            $pfMonth = [];
             foreach ($pfMonthRows as $r) {
                 $pfMonth[$r->year][$r->month][$r->district] = (float) $r->fact_paid;
             }
 
-            // ── 6. Parse payment_schedule → planSchedule[district][YYYY-MM-DD] += amount ──
-            //    Maps planned due-dates (from grafik_apz) per district.
-            //    We join via contract_id so district key = Cyrillic p.district.
+            // ── 6. Parse payment_schedule → planMap[district][year][month][day] ─────
             $contracts = DB::table('apz_contracts')
                 ->whereNotNull('payment_schedule')
-                ->where('payment_schedule', '!=', 'null')
-                ->where('payment_schedule', '!=', '{}')
-                ->where('payment_schedule', '!=', '[]')
+                ->whereRaw("payment_schedule != 'null' AND payment_schedule != '{}' AND payment_schedule != '[]'")
                 ->get(['contract_id', 'payment_schedule']);
 
-            // Build district map: contract_id => Cyrillic district (from payments)
             $contractDistrict = DB::table('apz_payments')
                 ->whereNotNull('district')->where('district', '!=', '')
                 ->groupBy('contract_id')
@@ -347,20 +335,13 @@ class TransactionController extends Controller
                 ->pluck('district', 'contract_id')
                 ->toArray();
 
-            // Russian month names lookup (for planSchedule month key)
-            $ruMonths = [1=>'Январь',2=>'Февраль',3=>'Март',4=>'Апрель',
-                         5=>'Май',6=>'Июнь',7=>'Июль',8=>'Август',
-                         9=>'Сентябрь',10=>'Октябрь',11=>'Ноябрь',12=>'Декабрь'];
-
-            // planSchedule[district][year][month][YYYY-MM-DD] += mln
-            $planSchedule = [];
+            $planMap = [];
             foreach ($contracts as $c) {
                 $sched = json_decode($c->payment_schedule, true);
                 if (!is_array($sched) || empty($sched)) continue;
                 $dist = $contractDistrict[$c->contract_id] ?? null;
                 if (!$dist) continue;
                 foreach ($sched as $rawDate => $amountSom) {
-                    // Normalize date: "7/31/2024" or "2024-07-31" -> Carbon
                     try {
                         $dt = \Carbon\Carbon::parse($rawDate);
                     } catch (\Exception $e) {
@@ -369,16 +350,102 @@ class TransactionController extends Controller
                     $yy  = $dt->year;
                     $mm  = $ruMonths[$dt->month];
                     $day = $dt->format('Y-m-d');
-                    $planSchedule[$dist][$yy][$mm][$day] = ($planSchedule[$dist][$yy][$mm][$day] ?? 0) + $amountSom / 1000000;
+                    $planMap[$dist][$yy][$mm][$day] = ($planMap[$dist][$yy][$mm][$day] ?? 0)
+                        + round($amountSom / 1000000, 4);
                 }
             }
 
-            // ── 7. Available years ─────────────────────────────────────────────
-            $availableYears = DB::table('apz_payments')
-                ->selectRaw('DISTINCT year')->whereNotNull('year')->where('year','>',0)
-                ->orderBy('year','desc')->pluck('year')->toArray();
+            // ── 7a. Build plan totals per (district,year) and (district,year,month) from planMap
+            $pfYearPlan  = []; // [dist][year]       = scheduled plan sum
+            $pfMonthPlan = []; // [dist][year][month] = scheduled plan sum
+            foreach ($planMap as $dist => $years) {
+                foreach ($years as $yy => $months) {
+                    foreach ($months as $mm => $days) {
+                        $sum = array_sum($days);
+                        $pfYearPlan[$dist][$yy]          = ($pfYearPlan[$dist][$yy] ?? 0) + $sum;
+                        $pfMonthPlan[$dist][$yy][$mm]    = ($pfMonthPlan[$dist][$yy][$mm] ?? 0) + $sum;
+                    }
+                }
+            }
 
-            return compact('summaryData','totals','planFact','availableYears','drill','monthOrder','pfYear','pfMonth','planSchedule');
+            // ── 7. Pre-build dayRows[district][year][month] ──────────────────────
+            //    Each entry is a ready-to-render array the view just iterates.
+            $dayRows = [];
+
+            // Gather all (district, year, month) combinations from facts
+            $monthCombos = [];
+            foreach ($factRows as $r) {
+                $monthCombos[$r->district][$r->year][$r->month] = true;
+            }
+            // Also include months that only appear in the plan schedule
+            foreach ($planMap as $dist => $years) {
+                foreach ($years as $yy => $months) {
+                    foreach ($months as $mm => $_) {
+                        $monthCombos[$dist][$yy][$mm] = true;
+                    }
+                }
+            }
+
+            foreach ($monthCombos as $dist => $years) {
+                foreach ($years as $yy => $months) {
+                    foreach ($months as $mm => $_) {
+                        // Days where THIS district had a fact payment
+                        $factDays = array_keys(array_filter(
+                            $factMap[$yy][$mm] ?? [],
+                            fn($dayDistricts) => isset($dayDistricts[$dist])
+                        ));
+                        $planDays = array_keys($planMap[$dist][$yy][$mm] ?? []);
+                        $allDays  = array_unique(array_merge($factDays, $planDays));
+                        sort($allDays);
+
+                        $rows = [];
+                        foreach ($allDays as $dayKey) {
+                            $fr      = $factMap[$yy][$mm][$dayKey][$dist] ?? null;
+                            $planAmt = round($planMap[$dist][$yy][$mm][$dayKey] ?? 0, 2);
+                            $factAmt = round($fr ? (float) $fr->income : 0, 2);
+                            $hasPlan = $planAmt > 0;
+                            $hasFact = $factAmt > 0;
+                            $bal     = $hasPlan ? round($planAmt - $factAmt, 2) : null;
+                            $pct     = ($hasPlan && $planAmt > 0)
+                                ? round($factAmt / $planAmt * 100, 1)
+                                : null;
+                            $rows[] = [
+                                'date'     => $dayKey,
+                                'date_fmt' => date('d.m.Y', strtotime($dayKey)),
+                                'type'     => $hasPlan && $hasFact ? 'both'
+                                            : ($hasPlan ? 'plan' : 'fact'),
+                                'cnt'      => $fr ? (int) $fr->cnt : 0,
+                                'income'   => $hasFact ? $factAmt : null,
+                                'apz'      => $fr && (float) $fr->apz  > 0 ? round((float) $fr->apz,  2) : null,
+                                'pen'      => $fr && (float) $fr->pen  > 0 ? round((float) $fr->pen,  2) : null,
+                                'ref'      => $fr && (float) $fr->ref  > 0 ? round((float) $fr->ref,  2) : null,
+                                'plan'     => $hasPlan ? $planAmt : null,
+                                'fact'     => $hasFact ? $factAmt : null,
+                                'balance'  => $bal,
+                                'pct'      => $pct,
+                                'bar_w'    => $pct !== null ? min($pct, 100) : 0,
+                            ];
+                        }
+                        $dayRows[$dist][$yy][$mm] = $rows;
+                    }
+                    // Sort months in calendar order
+                    $monthOrder = array_flip(array_values($ruMonths));
+                    uksort($dayRows[$dist][$yy], fn($a,$b) => ($monthOrder[$a] ?? 99) <=> ($monthOrder[$b] ?? 99));
+                }
+                // Sort years ascending
+                ksort($dayRows[$dist]);
+            }
+
+            // ── 8. Available years ────────────────────────────────────────
+            $availableYears = DB::table('apz_payments')
+                ->selectRaw('DISTINCT year')->whereNotNull('year')->where('year', '>', 0)
+                ->orderBy('year', 'desc')->pluck('year')->toArray();
+
+            return compact(
+                'summaryData', 'totals', 'planFact',
+                'availableYears', 'factMap', 'dayRows',
+                'pfYear', 'pfMonth', 'pfYearPlan', 'pfMonthPlan'
+            );
         });
 
         $viewData['selectedYear'] = $year;
