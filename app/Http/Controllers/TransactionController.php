@@ -459,10 +459,13 @@ class TransactionController extends Controller
     {
         $district = $request->filled('district') ? $request->district : null;
         $status   = $request->filled('status')   ? $request->status   : null;
+        $page     = max(1, (int) $request->get('page', 1));
+        $perPage  = 25;
+        $offset   = ($page - 1) * $perPage;
 
         $cacheKey = 'apz_summary2_' . md5(($district ?? 'all') . '|' . ($status ?? 'all'));
 
-        $viewData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($district, $status) {
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($district, $status) {
 
             $cWhere = [];
             if ($district) $cWhere[] = "c.district = " . DB::getPdo()->quote($district);
@@ -471,12 +474,10 @@ class TransactionController extends Controller
             if ($status === 'cancelled') $cWhere[] = "c.contract_status = 'Bekor qilingan'";
             $cSQL = $cWhere ? 'WHERE ' . implode(' AND ', $cWhere) : '';
 
-            // All contracts (filtered)
             $contracts = DB::select("
                 SELECT c.id, c.contract_id, c.district, c.investor_name, c.inn,
                        c.contract_number, c.contract_date, c.contract_status,
                        c.contract_value, c.payment_terms, c.installments_count,
-                       c.payment_schedule,
                        COALESCE(paid.total_paid, 0) as total_paid,
                        COALESCE(paid.payment_count, 0) as payment_count
                 FROM apz_contracts c
@@ -492,14 +493,12 @@ class TransactionController extends Controller
                 ORDER BY c.contract_id
             ");
 
-            // Totals
             $grandPlan = $grandFact = 0;
             foreach ($contracts as $c) {
                 $grandPlan += (float) $c->contract_value;
                 $grandFact += (float) $c->total_paid;
             }
 
-            // Available districts & statuses for filter
             $availableDistricts = DB::table('apz_contracts')
                 ->selectRaw('DISTINCT district')
                 ->whereNotNull('district')->where('district', '!=', '')
@@ -510,9 +509,131 @@ class TransactionController extends Controller
             return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
         });
 
-        $viewData['selectedDistrict'] = $district;
-        $viewData['selectedStatus']   = $status;
+        $allContracts = $allData['contracts'];
+        $total        = count($allContracts);
+        $lastPage     = (int) ceil($total / $perPage) ?: 1;
+        $page         = min($page, $lastPage);
+        $contracts    = array_slice($allContracts, ($page - 1) * $perPage, $perPage);
+
+        $viewData = array_merge($allData, [
+            'contracts'        => $contracts,
+            'total'            => $total,
+            'page'             => $page,
+            'perPage'          => $perPage,
+            'lastPage'         => $lastPage,
+            'selectedDistrict' => $district,
+            'selectedStatus'   => $status,
+        ]);
+
         return view('transactions.summary2', $viewData);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // MODAL: AJAX — payments list (district filter, month filter, contract filter)
+    // ──────────────────────────────────────────────────────────────────────
+    public function modalPayments(Request $request)
+    {
+        $district    = $request->district;
+        $month       = $request->month;
+        $year        = $request->year ? (int) $request->year : null;
+        $contractId  = $request->contract_id ? (int) $request->contract_id : null;
+        $page        = max(1, (int) $request->get('page', 1));
+        $perPage     = 20;
+        $offset      = ($page - 1) * $perPage;
+
+        $where  = [];
+        $params = [];
+
+        if ($district)   { $where[] = 'p.district = ?';    $params[] = $district; }
+        if ($month)      { $where[] = 'p.month = ?';       $params[] = $month; }
+        if ($year)       { $where[] = 'p.year = ?';        $params[] = $year; }
+        if ($contractId) { $where[] = 'p.contract_id = ?'; $params[] = $contractId; }
+
+        $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $total = DB::selectOne(
+            "SELECT COUNT(*) as cnt FROM apz_payments p {$whereSQL}", $params
+        )->cnt;
+
+        $rows = DB::select(
+            "SELECT p.id, p.payment_date, p.contract_id, p.district, p.type, p.flow,
+                    p.amount, p.year, p.month, p.company_name,
+                    p.payment_purpose, c.investor_name, c.contract_number
+             FROM apz_payments p
+             LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
+             {$whereSQL}
+             ORDER BY p.payment_date DESC, p.id DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+
+        return response()->json([
+            'rows'       => $rows,
+            'total'      => (int) $total,
+            'page'       => $page,
+            'per_page'   => $perPage,
+            'last_page'  => (int) ceil($total / $perPage),
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // MODAL: AJAX — single contract detail (schedule + payments)
+    // ──────────────────────────────────────────────────────────────────────
+    public function modalContract(Request $request, $contractId)
+    {
+        $contract = DB::selectOne(
+            "SELECT c.*, COALESCE(SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END),0) as total_paid,
+                    COUNT(p.id) as payment_count
+             FROM apz_contracts c
+             LEFT JOIN apz_payments p ON p.contract_id = c.contract_id
+             WHERE c.contract_id = ?
+             GROUP BY c.id",
+            [$contractId]
+        );
+
+        if (!$contract) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        $page    = max(1, (int) $request->get('page', 1));
+        $perPage = 15;
+        $offset  = ($page - 1) * $perPage;
+
+        $total = DB::selectOne(
+            'SELECT COUNT(*) as cnt FROM apz_payments WHERE contract_id = ?', [$contractId]
+        )->cnt;
+
+        $payments = DB::select(
+            "SELECT id, payment_date, type, flow, amount, month, year, company_name, payment_purpose
+             FROM apz_payments WHERE contract_id = ?
+             ORDER BY payment_date DESC, id DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            [$contractId]
+        );
+
+        // Parse payment schedule
+        $schedule = [];
+        if ($contract->payment_schedule) {
+            $sched = json_decode($contract->payment_schedule, true);
+            if (is_array($sched)) {
+                foreach ($sched as $date => $amt) {
+                    try {
+                        $dt = \Carbon\Carbon::parse($date);
+                        $schedule[] = ['date' => $dt->format('d.m.Y'), 'amount' => round($amt / 1000000, 4)];
+                    } catch (\Exception $e) {}
+                }
+            }
+        }
+
+        return response()->json([
+            'contract' => $contract,
+            'schedule' => $schedule,
+            'payments' => $payments,
+            'total'    => (int) $total,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'last_page'=> (int) ceil($total / $perPage),
+        ]);
     }
 
     // ──────────────────────────────────────────────────────────────────────

@@ -127,9 +127,48 @@
     .inline-table tbody td.cnt { text-align: right; color: #6e788b; font-size: 0.8rem; }
     .inline-table tbody td.name { font-weight: 500; color: #15191e; }
 
-    /* ── Progress bar ── */
-    .bar-wrap { height: 5px; background: #f0f2f5; border-radius: 3px; margin-top: 6px; }
-    .bar-fill  { height: 5px; background: #018c87; border-radius: 3px; }
+    /* ── Clickable row ── */
+    .inline-table tbody tr.clickable { cursor:pointer; }
+    .inline-table tbody tr.clickable:hover td { background:#d8f3f2 !important; }
+
+    /* ── Detail modal ── */
+    #detail-modal {
+        display:none; position:fixed; inset:0; background:rgba(0,0,0,.5);
+        z-index:1000; align-items:center; justify-content:center; padding:16px;
+    }
+    #detail-modal.open { display:flex; }
+    .dm-box {
+        background:#fff; border-radius:14px; width:100%; max-width:900px;
+        max-height:90vh; display:flex; flex-direction:column;
+        box-shadow:0 8px 32px rgba(0,0,0,.18);
+    }
+    .dm-head {
+        padding:16px 20px; border-bottom:1px solid #e8e8e8;
+        display:flex; align-items:center; justify-content:space-between;
+        background:#018c87; border-radius:14px 14px 0 0; color:#fff;
+    }
+    .dm-head h3 { margin:0; font-size:.95rem; font-weight:700; }
+    .dm-head button { background:none; border:none; color:#fff; font-size:1.2rem; cursor:pointer; opacity:.8; }
+    .dm-head button:hover { opacity:1; }
+    .dm-body { padding:16px 20px; overflow-y:auto; flex:1; }
+    .dm-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .dm-table th { padding:8px 10px; background:#f4fefe; color:#015c58; font-weight:600;
+        border:1px solid #e0e0e0; text-align:center; white-space:nowrap; }
+    .dm-table td { padding:7px 10px; border:1px solid #ebebeb; color:#27314b; }
+    .dm-table td.r { text-align:right; }
+    .dm-table tr:nth-child(even) td { background:#f9fefe; }
+    .dm-table tr:hover td { background:#e8f7f6 !important; }
+    .dm-footer { padding:12px 20px; border-top:1px solid #e8e8e8;
+        display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .dm-pg-btn {
+        padding:5px 14px; border:1px solid #018c87; border-radius:6px;
+        background:#fff; color:#018c87; font-size:.78rem; font-weight:600; cursor:pointer;
+    }
+    .dm-pg-btn:hover { background:#018c87; color:#fff; }
+    .dm-pg-btn:disabled { opacity:.4; cursor:not-allowed; }
+    .dm-pg-info { font-size:.78rem; color:#6e788b; }
+    .flow-in  { color:#0a8a2e; font-weight:600; }
+    .flow-out { color:#e63260; font-weight:600; }
 
     /* ── Month badge ── */
     .month-badge {
@@ -215,7 +254,7 @@
                 </thead>
                 <tbody>
                     @forelse($monthlyStats as $stat)
-                        <tr>
+                        <tr class="clickable" onclick="openModal('Ой: '+this.dataset.month+' '+this.dataset.year, {year:this.dataset.year, month:this.dataset.month})" data-year="{{ $stat->year }}" data-month="{{ $stat->month }}">
                             <td><span class="month-badge">{{ $stat->year }}</span></td>
                             <td class="name">{{ $stat->month }}</td>
                             <td class="num">{{ number_format($stat->income, 2, '.', ' ') }}</td>
@@ -247,7 +286,7 @@
                 <tbody>
                     @forelse($districtStats as $stat)
                         @php $pct = $maxDistrict > 0 ? ($stat->income / $maxDistrict * 100) : 0; @endphp
-                        <tr>
+                        <tr class="clickable" onclick="openModal('Туман: '+this.dataset.district, {district:this.dataset.district})" data-district="{{ $stat->district }}">
                             <td class="name">
                                 {{ $stat->district }}
                                 <div class="bar-wrap"><div class="bar-fill" style="width:{{ $pct }}%"></div></div>
@@ -347,4 +386,100 @@
     </div>
 </div>
 
+{{-- ── Detail Modal ── --}}
+<div id="detail-modal">
+    <div class="dm-box">
+        <div class="dm-head">
+            <h3 id="dm-title">Тафсилот</h3>
+            <button onclick="closeModal()">✕</button>
+        </div>
+        <div class="dm-body">
+            <div style="overflow-x:auto;">
+                <table class="dm-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Сана</th>
+                            <th>Туман</th>
+                            <th>Шартнома</th>
+                            <th>Инвестор</th>
+                            <th>Тур</th>
+                            <th>Млн.сўм</th>
+                            <th>Мақсад</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dm-tbody">
+                        <tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa;">Юкланиш кутилмоқда...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="dm-footer">
+            <button id="dm-prev" class="dm-pg-btn" disabled>← Олдинги</button>
+            <span id="dm-pg-info" class="dm-pg-info">—</span>
+            <button id="dm-next" class="dm-pg-btn" disabled>Кейинги →</button>
+        </div>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+const MODAL_URL = '{{ route('modal.payments') }}';
+let modalState = { params:{}, page:1, lastPage:1, title:'' };
+
+function openModal(title, params, page) {
+    modalState = { params, page: page||1, lastPage:1, title };
+    document.getElementById('dm-title').textContent = title;
+    document.getElementById('detail-modal').classList.add('open');
+    fetchModal();
+}
+
+function closeModal() {
+    document.getElementById('detail-modal').classList.remove('open');
+}
+
+function fetchModal() {
+    const body = document.getElementById('dm-tbody');
+    const info = document.getElementById('dm-pg-info');
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa;">Юкланмоқда...</td></tr>';
+    const params = new URLSearchParams({ ...modalState.params, page: modalState.page });
+    fetch(MODAL_URL + '?' + params, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+            modalState.lastPage = data.last_page;
+            renderModalRows(data);
+            info.textContent = `${data.page} / ${data.last_page} (Жами: ${data.total})`;
+            document.getElementById('dm-prev').disabled = data.page <= 1;
+            document.getElementById('dm-next').disabled = data.page >= data.last_page;
+        })
+        .catch(() => { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#e63260;">Хатолик юз берди</td></tr>'; });
+}
+
+function renderModalRows(data) {
+    const body = document.getElementById('dm-tbody');
+    if (!data.rows.length) {
+        body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#aaa;">Маълумот йўқ</td></tr>';
+        return;
+    }
+    body.innerHTML = data.rows.map((r, i) => `
+        <tr>
+            <td style="color:#aaa;font-size:.72rem;">${(data.page-1)*data.per_page + i + 1}</td>
+            <td>${r.payment_date || '—'}</td>
+            <td>${r.district || '—'}</td>
+            <td style="font-size:.75rem;color:#018c87;">${r.contract_number || r.contract_id || '—'}</td>
+            <td style="font-size:.76rem;">${r.investor_name || r.company_name || '—'}</td>
+            <td style="font-size:.75rem;">${r.type || '—'}</td>
+            <td class="r ${r.flow === 'Приход' ? 'flow-in' : 'flow-out'}">${r.flow === 'Приход' ? '+' : '-'}${Number(r.amount/1000000).toFixed(2)}</td>
+            <td style="font-size:.72rem;color:#888;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.payment_purpose || '—'}</td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('dm-prev').onclick = () => { if(modalState.page > 1){ modalState.page--; fetchModal(); } };
+document.getElementById('dm-next').onclick = () => { if(modalState.page < modalState.lastPage){ modalState.page++; fetchModal(); } };
+document.getElementById('detail-modal').addEventListener('click', e => { if(e.target === e.currentTarget) closeModal(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape') closeModal(); });
+</script>
+@endpush
