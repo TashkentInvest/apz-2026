@@ -647,24 +647,45 @@ class TransactionController extends Controller
 
         $advancePercent = $this->extractInitialPaymentPercent($contract->payment_terms ?? null);
         $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
+        $advancePercentDecimals = abs($advancePercent - floor($advancePercent)) < 0.00001 ? 0 : 2;
+        $advanceLabel = $advancePercent > 0
+            ? $this->formatNumber($advancePercent, $advancePercentDecimals) . '% · ' . $this->formatNumber($advanceAmount, 2)
+            : '—';
 
         $scheduleRows = [];
-        $rowNum = 1;
-
-        if ($advancePercent > 0 && $advanceAmount > 0) {
-            $percentDecimals = abs($advancePercent - floor($advancePercent)) < 0.00001 ? 0 : 2;
-            $scheduleRows[] = [
-                'row_num' => $rowNum++,
-                'date' => 'Аванс (' . $this->formatNumber($advancePercent, $percentDecimals) . '%)',
-                'amount' => $this->formatNumber($advanceAmount, 4),
-            ];
-        }
+        $remainingFactForSchedule = $fact;
+        $today = \Carbon\CarbonImmutable::now()->endOfDay();
 
         foreach ($payload['schedule'] as $index => $row) {
+            $scheduleAmount = max((float) ($row['amount'] ?? 0), 0.0);
+            $factAmount = min($scheduleAmount, max($remainingFactForSchedule, 0.0));
+            $remainingFactForSchedule = max($remainingFactForSchedule - $factAmount, 0.0);
+
+            $type = 'Муддатсиз';
+            $rawDate = trim((string) ($row['date'] ?? ''));
+            if ($rawDate !== '' && $rawDate !== '—') {
+                try {
+                    $dueDate = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $rawDate)->endOfDay();
+                    $type = $dueDate->lessThanOrEqualTo($today) ? 'Муддатли' : 'Муддатсиз';
+                } catch (\Throwable $e) {
+                    try {
+                        $dueDate = \Carbon\CarbonImmutable::parse($rawDate)->endOfDay();
+                        $type = $dueDate->lessThanOrEqualTo($today) ? 'Муддатли' : 'Муддатсиз';
+                    } catch (\Throwable $inner) {
+                    }
+                }
+            }
+
+            $diffAmount = max($scheduleAmount - $factAmount, 0.0);
+
             $scheduleRows[] = [
-                'row_num' => $rowNum++,
+                'row_num' => $index + 1,
+                'type' => $type,
                 'date' => $row['date'] ?? '—',
-                'amount' => $this->formatNumber((float) ($row['amount'] ?? 0), 4),
+                'schedule_amount' => $this->formatNumber($scheduleAmount, 2),
+                'fact_amount' => $this->formatNumber($factAmount, 2),
+                'diff_amount' => $this->formatNumber($diffAmount, 2),
+                'diff_class' => $diffAmount > 0.0 ? 'flow-out' : 'flow-in',
             ];
         }
 
@@ -685,6 +706,7 @@ class TransactionController extends Controller
                 'issue_label' => $contract->issue_label ?? '—',
                 'issue_class' => str_replace('issue-', 'is-', $this->issueClass($issueKey)),
                 'plan_mln' => $this->formatNumber($plan, 2),
+                'advance_label' => $advanceLabel,
                 'fact_mln' => $this->formatNumber($fact, 2),
                 'debt_mln' => $this->formatNumber(((float) ($contract->debt ?? 0)), 2),
                 'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),

@@ -91,6 +91,7 @@
 
     <div class="stat-grid">
         <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Аванс</div><div class="val" style="color:#015c58;">{{ $contract['advance_label'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Қарздорлик (бугунгача)</div><div class="val" style="color:#e63260;">{{ $contract['debt_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Бажарилиш</div><div class="val">{{ $contract['pct'] }}%</div></div>
@@ -111,19 +112,25 @@
             <thead>
                 <tr>
                     <th style="width:6%">№</th>
-                    <th>Сана</th>
-                    <th>Сўм</th>
+                    <th>Тури</th>
+                    <th>График санаси</th>
+                    <th>График суммаси</th>
+                    <th>Факт сумма</th>
+                    <th>График ва факт фарқи</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse($scheduleRows as $row)
                 <tr>
                     <td class="c">{{ $row['row_num'] }}</td>
+                    <td class="c">{{ $row['type'] }}</td>
                     <td class="c">{{ $row['date'] }}</td>
-                    <td class="r">{{ $row['amount'] }}</td>
+                    <td class="r">{{ $row['schedule_amount'] }}</td>
+                    <td class="r">{{ $row['fact_amount'] }}</td>
+                    <td class="r {{ $row['diff_class'] }}">{{ $row['diff_amount'] }}</td>
                 </tr>
                 @empty
-                <tr><td colspan="3" class="c" style="color:#8892a5;">Жадвал топилмади</td></tr>
+                <tr><td colspan="6" class="c" style="color:#8892a5;">Жадвал топилмади</td></tr>
                 @endforelse
             </tbody>
         </table>
