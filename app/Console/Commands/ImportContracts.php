@@ -10,7 +10,7 @@ class ImportContracts extends Command
     protected $signature   = 'apz:import-contracts {--fresh : Truncate table before importing}';
     protected $description = 'Import APZ contracts from grafik_apz.csv into apz_contracts table';
 
-    // grafik_apz.csv comma-separated (105 columns):
+    // grafik_apz.csv delimiter-separated (105 columns):
     // [0]  ID              [1]  district        [2]  mfy
     // [3]  address         [4]  build_volume    [5]  coefficient
     // [6]  zone            [7]  permit          [8]  apz_number
@@ -45,8 +45,18 @@ class ImportContracts extends Command
             return self::FAILURE;
         }
 
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            $this->error('Cannot read CSV file.');
+            fclose($handle);
+            return self::FAILURE;
+        }
+
+        $delimiter = $this->detectCsvDelimiter($firstLine);
+        rewind($handle);
+
         // Read header to get monthly date column headers (indexes 24-104)
-        $header = fgetcsv($handle, 0, ',');
+        $header = fgetcsv($handle, 0, $delimiter);
         if (!$header) {
             $this->error('Cannot read CSV header.');
             fclose($handle);
@@ -66,7 +76,7 @@ class ImportContracts extends Command
 
         $this->info('Importing APZ contracts...');
 
-        while (($row = fgetcsv($handle, 0, ',')) !== false) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
             if (count($row) < 20) {
                 $skipped++;
                 continue;
@@ -111,7 +121,7 @@ class ImportContracts extends Command
                 'contract_date'       => $this->parseDate(trim($row[19] ?? '')),
                 'contract_status'     => mb_substr(trim($row[20] ?? ''), 0, 100),
                 'contract_value'      => $this->parseAmount($row[21] ?? ''),
-                'payment_terms'       => mb_substr(trim($row[22] ?? ''), 0, 50),
+                'payment_terms'       => $this->normalizePaymentTerms($row[22] ?? ''),
                 'installments_count'  => (int) trim($row[23] ?? 0),
                 'payment_schedule'    => json_encode($schedule),
                 'created_at'          => $now,
@@ -140,6 +150,12 @@ class ImportContracts extends Command
     {
         $s = trim($s);
         if (empty($s)) return null;
+
+        // D.M.YYYY
+        if (preg_match('#^(\d{1,2})\.(\d{1,2})\.(\d{4})$#', $s, $m)) {
+            return sprintf('%04d-%02d-%02d', $m[3], $m[2], $m[1]);
+        }
+
         // M/D/YYYY
         if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $s, $m)) {
             return sprintf('%04d-%02d-%02d', $m[3], $m[1], $m[2]);
@@ -154,10 +170,64 @@ class ImportContracts extends Command
     {
         $s = trim($s);
         if ($s === '' || $s === '-' || $s === ' - ') return 0.0;
+
         // Remove spaces, NBSP, figure spaces
         $s = preg_replace('/[\s\x{00A0}\x{2007}]/u', '', $s);
-        // Remove thousands commas  e.g. 1,234,567.00
-        $s = preg_replace('/,(?=\d{3})/', '', $s);
+
+        if (str_contains($s, ',') && str_contains($s, '.')) {
+            $lastComma = strrpos($s, ',');
+            $lastDot = strrpos($s, '.');
+
+            if ($lastComma !== false && $lastDot !== false && $lastComma > $lastDot) {
+                $s = str_replace('.', '', $s);
+                $s = str_replace(',', '.', $s);
+            } else {
+                $s = str_replace(',', '', $s);
+            }
+        } elseif (str_contains($s, ',')) {
+            if (preg_match('/,\d{1,4}$/', $s)) {
+                $s = str_replace(',', '.', $s);
+            } else {
+                $s = str_replace(',', '', $s);
+            }
+        }
+
         return (float) $s;
+    }
+
+    private function detectCsvDelimiter(string $line): string
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return ',';
+        }
+
+        $commaCount = substr_count($line, ',');
+        $semicolonCount = substr_count($line, ';');
+
+        return $semicolonCount > $commaCount ? ';' : ',';
+    }
+
+    private function normalizePaymentTerms($value): string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '' || $raw === '-' || $raw === ' - ') {
+            return '';
+        }
+
+        $raw = preg_replace('/\s+/u', '', $raw);
+        $raw = str_replace('%', '', $raw);
+
+        if (preg_match('/^([0-9]+(?:[\.,][0-9]+)?)\/([0-9]+(?:[\.,][0-9]+)?)$/u', $raw, $m)) {
+            $first = str_replace(',', '.', $m[1]);
+            $second = str_replace(',', '.', $m[2]);
+            return $first . '/' . $second;
+        }
+
+        if (preg_match('/^[0-9]+(?:[\.,][0-9]+)?$/u', $raw)) {
+            return str_replace(',', '.', $raw);
+        }
+
+        return mb_substr($raw, 0, 50);
     }
 }

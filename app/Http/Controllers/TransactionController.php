@@ -487,7 +487,7 @@ class TransactionController extends Controller
             $contracts = DB::select("
                 SELECT c.id, c.contract_id, c.investor_name, c.district,
                        c.contract_number, c.contract_date, c.contract_status,
-                      c.construction_issues, c.contract_value, c.payment_schedule,
+                      c.construction_issues, c.contract_value, c.payment_terms, c.payment_schedule,
                        COALESCE(paid.total_paid, 0) as total_paid
                 FROM apz_contracts c
                 LEFT JOIN (
@@ -510,7 +510,9 @@ class TransactionController extends Controller
                 $metrics = $this->calculateContractFinancials(
                     $contract->contract_value ?? 0,
                     $contract->total_paid ?? 0,
-                    $contract->payment_schedule ?? null
+                    $contract->payment_schedule ?? null,
+                    $contract->payment_terms ?? null,
+                    $contract->contract_date ?? null
                 );
                 $plan = $metrics['plan'];
                 $fact = $metrics['fact'];
@@ -627,7 +629,9 @@ class TransactionController extends Controller
         $metrics  = $this->calculateContractFinancials(
             $contract->contract_value ?? 0,
             $contract->total_paid ?? 0,
-            $contract->payment_schedule ?? null
+            $contract->payment_schedule ?? null,
+            $contract->payment_terms ?? null,
+            $contract->contract_date ?? null
         );
         $plan     = $metrics['plan'];
         $fact     = $metrics['fact'];
@@ -641,10 +645,24 @@ class TransactionController extends Controller
 
         $backUrl = $request->filled('back') ? (string) $request->back : null;
 
+        $advancePercent = $this->extractInitialPaymentPercent($contract->payment_terms ?? null);
+        $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
+
         $scheduleRows = [];
+        $rowNum = 1;
+
+        if ($advancePercent > 0 && $advanceAmount > 0) {
+            $percentDecimals = abs($advancePercent - floor($advancePercent)) < 0.00001 ? 0 : 2;
+            $scheduleRows[] = [
+                'row_num' => $rowNum++,
+                'date' => 'Аванс (' . $this->formatNumber($advancePercent, $percentDecimals) . '%)',
+                'amount' => $this->formatNumber($advanceAmount, 4),
+            ];
+        }
+
         foreach ($payload['schedule'] as $index => $row) {
             $scheduleRows[] = [
-                'row_num' => $index + 1,
+                'row_num' => $rowNum++,
                 'date' => $row['date'] ?? '—',
                 'amount' => $this->formatNumber((float) ($row['amount'] ?? 0), 4),
             ];
@@ -1254,11 +1272,11 @@ class TransactionController extends Controller
         ]);
     }
 
-    private function calculateContractFinancials($contractValue, $paidAmount, $scheduleRaw = null): array
+    private function calculateContractFinancials($contractValue, $paidAmount, $scheduleRaw = null, $paymentTerms = null, $contractDate = null): array
     {
         $plan = max((float) $contractValue, 0.0);
         $fact = max((float) $paidAmount, 0.0);
-        $planDueToday = $this->resolvePlanAmountByToday($plan, $scheduleRaw);
+        $planDueToday = $this->resolvePlanAmountByToday($plan, $scheduleRaw, $paymentTerms, $contractDate);
         $diff = $plan - $fact;
 
         return [
@@ -1271,14 +1289,16 @@ class TransactionController extends Controller
         ];
     }
 
-    private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw): float
+    private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw, $paymentTerms = null, $contractDate = null): float
     {
+        $today = \Carbon\CarbonImmutable::now()->endOfDay();
+        $initialDue = $this->resolveInitialPaymentDueAmount($contractValue, $paymentTerms, $contractDate, $today);
+
         $scheduleByDate = $this->parseScheduleByDate($scheduleRaw);
         if (empty($scheduleByDate)) {
-            return max($contractValue, 0.0);
+            return max($contractValue, $initialDue);
         }
 
-        $today = \Carbon\CarbonImmutable::now()->endOfDay();
         $planDueToday = 0.0;
         $latestDueDate = null;
 
@@ -1308,11 +1328,13 @@ class TransactionController extends Controller
         }
 
         if ($latestDueDate === null) {
-            return max($contractValue, 0.0);
+            $planDueToday = max($contractValue, $planDueToday);
+        } elseif ($latestDueDate->lessThanOrEqualTo($today) && $contractValue > $planDueToday) {
+            $planDueToday = $contractValue;
         }
 
-        if ($latestDueDate->lessThanOrEqualTo($today) && $contractValue > $planDueToday) {
-            $planDueToday = $contractValue;
+        if ($initialDue > $planDueToday) {
+            $planDueToday = $initialDue;
         }
 
         if ($planDueToday <= 0.0) {
@@ -1320,6 +1342,63 @@ class TransactionController extends Controller
         }
 
         return $contractValue > 0 ? min($planDueToday, $contractValue) : $planDueToday;
+    }
+
+    private function resolveInitialPaymentDueAmount(float $contractValue, $paymentTerms, $contractDate, \Carbon\CarbonImmutable $today): float
+    {
+        if ($contractValue <= 0.0) {
+            return 0.0;
+        }
+
+        $initialPercent = $this->extractInitialPaymentPercent($paymentTerms);
+        if ($initialPercent <= 0.0) {
+            return 0.0;
+        }
+
+        if (!$this->isContractDateReached($contractDate, $today)) {
+            return 0.0;
+        }
+
+        return ($contractValue * $initialPercent) / 100;
+    }
+
+    private function extractInitialPaymentPercent($paymentTerms): float
+    {
+        $raw = trim((string) $paymentTerms);
+        if ($raw === '') {
+            return 0.0;
+        }
+
+        $raw = str_replace('%', '', $raw);
+        $raw = preg_replace('/\s+/u', '', $raw);
+
+        if (preg_match('/^([0-9]+(?:[\.,][0-9]+)?)\/(?:[0-9]+(?:[\.,][0-9]+)?)$/u', $raw, $m)) {
+            $firstPart = (float) str_replace(',', '.', $m[1]);
+            return max(0.0, min($firstPart, 100.0));
+        }
+
+        if (preg_match('/^([0-9]+(?:[\.,][0-9]+)?)$/u', $raw, $m)) {
+            $fullPercent = (float) str_replace(',', '.', $m[1]);
+            return max(0.0, min($fullPercent, 100.0));
+        }
+
+        return 0.0;
+    }
+
+    private function isContractDateReached($contractDate, \Carbon\CarbonImmutable $today): bool
+    {
+        $raw = trim((string) $contractDate);
+        if ($raw === '') {
+            return true;
+        }
+
+        try {
+            $contractDateValue = \Carbon\CarbonImmutable::parse($raw)->endOfDay();
+        } catch (\Throwable $e) {
+            return true;
+        }
+
+        return $contractDateValue->lessThanOrEqualTo($today);
     }
 
     private function buildGrafikScheduleHeaders(): array
@@ -1454,7 +1533,24 @@ class TransactionController extends Controller
         }
 
         $normalized = preg_replace('/[\s\x{00A0}\x{2007}]/u', '', $raw);
-        $normalized = preg_replace('/,(?=\d{3})/', '', $normalized);
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $lastComma = strrpos($normalized, ',');
+            $lastDot = strrpos($normalized, '.');
+
+            if ($lastComma !== false && $lastDot !== false && $lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        } elseif (str_contains($normalized, ',')) {
+            if (preg_match('/,\d{1,4}$/', $normalized)) {
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+        }
 
         return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
@@ -1628,7 +1724,9 @@ class TransactionController extends Controller
             $metrics = $this->calculateContractFinancials(
                 $contract->contract_value ?? 0,
                 $contract->total_paid ?? 0,
-                $contract->payment_schedule ?? null
+                $contract->payment_schedule ?? null,
+                $contract->payment_terms ?? null,
+                $contract->contract_date ?? null
             );
             $plan = $metrics['plan'];
             $fact = $metrics['fact'];
