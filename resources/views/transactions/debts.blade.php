@@ -125,6 +125,7 @@
         @if($showResetFilters)
             <a href="{{ route('debts') }}" class="platon-btn platon-btn-outline platon-btn-sm">Тозалаш</a>
         @endif
+        <a href="{{ route('debts', array_merge(request()->query(), ['export' => 'xlsx'])) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
         <button onclick="window.print()" type="button" class="platon-btn platon-btn-primary platon-btn-sm" style="margin-left:auto;">Чоп</button>
     </form>
 

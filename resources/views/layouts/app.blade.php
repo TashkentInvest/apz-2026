@@ -171,6 +171,12 @@
             color: #15191e;
             white-space: nowrap;
         }
+        .platon-page-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
 
         .platon-header-actions {
             display: flex;
@@ -618,7 +624,12 @@
 
         {{-- Header --}}
         <header class="platon-header">
-            <div class="platon-page-title">@yield('title', 'Кабинет')</div>
+            <div class="platon-page-head">
+                <div class="platon-page-title">@yield('title', 'Кабинет')</div>
+                @if(request()->routeIs('home'))
+                    <a href="{{ route('home', array_merge(request()->query(), ['export' => 'xlsx'])) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
+                @endif
+            </div>
 
             <div class="platon-header-actions">
 

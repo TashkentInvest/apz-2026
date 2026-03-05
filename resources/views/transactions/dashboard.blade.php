@@ -334,6 +334,7 @@
     }
     .mon-table tbody tr:nth-child(even) td { background:#f9fcfc; }
     .mon-table tbody tr:hover td { background:#eaf7f6; }
+    .mon-table tbody tr.row-clickable { cursor:pointer; }
     .mon-table td.r { text-align:right; }
     .mon-table td.c { text-align:center; }
     .mon-title {
@@ -366,6 +367,14 @@
         text-overflow:ellipsis;
         white-space:nowrap;
     }
+    .mon-link {
+        color:#018c87;
+        text-decoration:none;
+        font-weight:600;
+    }
+    .mon-link:hover {
+        text-decoration:underline;
+    }
     .mon-table-wrap.compact-scroll {
         max-height:380px;
         overflow:auto;
@@ -387,7 +396,7 @@
     $totalIncome    = $global->total_income ?? 0;
     $totalExpense   = $global->total_expense ?? 0;
     $totalRecords   = $global->total_records ?? 0;
-    $uDistricts     = $global->unique_districts ?? 0;
+    $uDistricts     = $dashboardDistrictCount ?? ($global->unique_districts ?? 0);
     $uContracts     = $global->unique_contracts ?? 0;
 
     $totalContracts = $contractStats->total ?? 0;
@@ -494,6 +503,7 @@
             @if($selectedMonitoringDistrict || $selectedMonitoringStatus !== 'all' || $selectedMonitoringIssue !== 'all' || $monitoringSearch)
                 <a href="{{ route('dashboard') }}" class="platon-btn platon-btn-outline platon-btn-sm">Тозалаш</a>
             @endif
+            <a href="{{ route('dashboard', array_merge(request()->query(), ['export' => 'xlsx'])) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
         </form>
     </div>
 
@@ -516,13 +526,31 @@
                         </thead>
                         <tbody>
                             @foreach($monitoringSummaryRows as $i => $row)
-                            <tr>
+                            <tr class="{{ !empty($row['list_url']) ? 'row-clickable' : '' }}" @if(!empty($row['list_url'])) onclick="window.location='{{ $row['list_url'] }}'" @endif>
                                 <td class="c">{{ $i + 1 }}</td>
-                                <td>{{ $row['label'] }}</td>
-                                <td class="c">{{ number_format($row['contracts_count']) }}</td>
+                                <td>
+                                    @if(!empty($row['list_url']))
+                                        <a href="{{ $row['list_url'] }}" class="mon-link" onclick="event.stopPropagation()">{{ $row['label'] }}</a>
+                                    @else
+                                        {{ $row['label'] }}
+                                    @endif
+                                </td>
+                                <td class="c">
+                                    @if(!empty($row['list_url']))
+                                        <a href="{{ $row['list_url'] }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row['contracts_count']) }}</a>
+                                    @else
+                                        {{ number_format($row['contracts_count']) }}
+                                    @endif
+                                </td>
                                 <td class="r">{{ number_format($row['contract_value'] / 1000000, 2, '.', ' ') }}</td>
                                 <td class="r" style="color:#0a8a2e;">{{ number_format($row['total_paid'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#e63260;">{{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;">
+                                    @if(!empty($row['list_url']))
+                                        <a href="{{ $row['list_url'] }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}</a>
+                                    @else
+                                        {{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}
+                                    @endif
+                                </td>
                                 <td class="r">{{ number_format($row['pct'], 1) }}%</td>
                             </tr>
                             @endforeach
@@ -555,15 +583,15 @@
                         </thead>
                         <tbody>
                             @foreach($monitoringDistrictRows as $i => $row)
-                            <tr>
+                            <tr class="row-clickable" onclick="window.location='{{ $row->list_url }}'">
                                 <td class="c">{{ $i + 1 }}</td>
-                                <td>{{ $row->district }}</td>
-                                <td class="c">{{ number_format($row->contracts_count) }}</td>
+                                <td><a href="{{ $row->list_url }}" class="mon-link" onclick="event.stopPropagation()">{{ $row->district }}</a></td>
+                                <td class="c"><a href="{{ $row->list_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->contracts_count) }}</a></td>
                                 <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
                                 <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_paid / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
-                                <td class="c">{{ number_format($row->problem_count) }}</td>
-                                <td class="c">{{ number_format($row->no_problem_count) }}</td>
+                                <td class="r" style="color:#e63260;"><a href="{{ $row->debt_url }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</a></td>
+                                <td class="c"><a href="{{ $row->problem_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->problem_count) }}</a></td>
+                                <td class="c"><a href="{{ $row->no_problem_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->no_problem_count) }}</a></td>
                                 <td class="r">{{ number_format($row->pct ?? 0, 1) }}%</td>
                             </tr>
                             @endforeach

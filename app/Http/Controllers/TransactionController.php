@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\SimpleXlsxExportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
@@ -37,6 +38,10 @@ class TransactionController extends Controller
         }
 
         $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        if ($this->isXlsxExportRequest($request)) {
+            return $this->exportUnifiedSystemXlsx($request, $whereSQL, $params);
+        }
 
         $total = DB::selectOne(
             "SELECT COUNT(*) as cnt
@@ -119,7 +124,7 @@ class TransactionController extends Controller
         $monitorIssue    = $this->normalizeRequestedIssue($request->filled('issue') ? (string) $request->issue : 'all');
         $monitorSearch   = $request->filled('search') ? trim((string) $request->search) : null;
 
-        $dashboardCacheKey = 'apz_dashboard_data_v4_' . md5(
+        $dashboardCacheKey = 'apz_dashboard_data_v5_' . md5(
             ($monitorDistrict ?? 'all') . '|' .
             $monitorStatus . '|' .
             $monitorIssue . '|' .
@@ -259,10 +264,24 @@ class TransactionController extends Controller
         });
         $viewData = array_merge($viewData, $drillDownData);
 
+        $monitoringDistrictCount = is_array($viewData['monitoringDistrictRows'] ?? null)
+            ? count($viewData['monitoringDistrictRows'])
+            : 0;
+
+        $viewData['dashboardDistrictCount'] = $monitoringDistrictCount > 0
+            ? $monitoringDistrictCount
+            : (int) (($viewData['global']->unique_districts ?? 0));
+
         $viewData['selectedMonitoringDistrict'] = $monitorDistrict;
         $viewData['selectedMonitoringStatus']   = $monitorStatus;
         $viewData['selectedMonitoringIssue']    = $monitorIssue;
         $viewData['monitoringSearch']           = $monitorSearch;
+
+        $this->ensureDashboardMonitoringLinks($viewData, $monitorDistrict, $monitorStatus, $monitorIssue, $monitorSearch);
+
+        if ($this->isXlsxExportRequest($request)) {
+            return $this->exportDashboardXlsx($viewData);
+        }
 
         return view('transactions.dashboard', $viewData);
     }
@@ -362,6 +381,16 @@ class TransactionController extends Controller
 
             return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
         });
+
+        if ($this->isXlsxExportRequest($request)) {
+            return $this->exportSummary2Xlsx(
+                (array) ($allData['contracts'] ?? []),
+                $district,
+                $status,
+                $issue,
+                $searchTerm
+            );
+        }
 
         $allContracts = $allData['contracts'];
         $total        = count($allContracts);
@@ -501,6 +530,17 @@ class TransactionController extends Controller
 
             return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
         });
+
+        if ($this->isXlsxExportRequest($request)) {
+            return $this->exportDebtsXlsx(
+                (array) ($allData['contracts'] ?? []),
+                $status,
+                $issue,
+                $district,
+                $searchTerm,
+                $onlyDebtors
+            );
+        }
 
         $allContracts = $allData['contracts'];
         $total        = count($allContracts);
@@ -1012,6 +1052,425 @@ class TransactionController extends Controller
         return $rows;
     }
 
+    private function isXlsxExportRequest(Request $request): bool
+    {
+        $export = strtolower(trim((string) $request->get('export', '')));
+        return in_array($export, ['1', 'xlsx', 'xls', 'excel'], true);
+    }
+
+    private function exportUnifiedSystemXlsx(Request $request, string $whereSQL, array $params)
+    {
+        $contractColumns = array_map(
+            static fn ($row) => (string) $row->Field,
+            DB::select('SHOW COLUMNS FROM apz_contracts')
+        );
+
+        $paymentColumns = array_map(
+            static fn ($row) => (string) $row->Field,
+            DB::select('SHOW COLUMNS FROM apz_payments')
+        );
+
+        $contractSelect = implode(', ', array_map(
+            static fn ($column) => "c.`{$column}` as `contract_{$column}`",
+            $contractColumns
+        ));
+
+        $paymentSelect = implode(', ', array_map(
+            static fn ($column) => "p.`{$column}` as `payment_{$column}`",
+            $paymentColumns
+        ));
+
+        $query = "SELECT {$contractSelect}, {$paymentSelect},
+                        COALESCE(agg.income_total, 0) as agg_income_total,
+                        COALESCE(agg.expense_total, 0) as agg_expense_total,
+                        COALESCE(agg.payment_count, 0) as agg_payment_count,
+                        agg.last_payment_date as agg_last_payment_date,
+                        GREATEST(COALESCE(c.contract_value, 0) - COALESCE(agg.income_total, 0), 0) as agg_debt_total
+                  FROM apz_contracts c
+                  LEFT JOIN (
+                      SELECT contract_id,
+                             SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as income_total,
+                             SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as expense_total,
+                             COUNT(*) as payment_count,
+                             MAX(payment_date) as last_payment_date
+                      FROM apz_payments
+                      GROUP BY contract_id
+                  ) agg ON agg.contract_id = c.contract_id
+                  LEFT JOIN apz_payments p ON p.contract_id = c.contract_id
+                  {$whereSQL}
+                  ORDER BY c.contract_id, p.payment_date DESC, p.id DESC";
+
+        $rows = DB::select($query, $params);
+
+        $header = array_merge(
+            ['contract_status_label', 'contract_issue_label', 'contract_schedule_flat_mln', 'agg_fact_income_mln', 'agg_fact_expense_mln', 'agg_debt_mln', 'agg_payment_count', 'agg_last_payment_date'],
+            array_map(static fn ($column) => 'contract_' . $column, $contractColumns),
+            array_map(static fn ($column) => 'payment_' . $column, $paymentColumns)
+        );
+
+        $sheetRows = [
+            ['Filter', 'Value'],
+            ['district', (string) ($request->district ?: 'all')],
+            ['year', (string) ($request->year ?: 'all')],
+            ['month', (string) ($request->month ?: 'all')],
+            ['type', (string) ($request->type ?: 'all')],
+            ['date_from', (string) ($request->date_from ?: '—')],
+            ['date_to', (string) ($request->date_to ?: '—')],
+            ['search', (string) ($request->search ?: '—')],
+            ['exported_at', now()->format('d.m.Y H:i:s')],
+            [],
+            $header,
+        ];
+
+        foreach ($rows as $row) {
+            $statusRaw = $row->contract_contract_status ?? null;
+            $issueRaw = $row->contract_construction_issues ?? null;
+            $scheduleRaw = $row->contract_payment_schedule ?? null;
+
+            $base = [
+                $this->contractStatusLabel($statusRaw),
+                $this->issueStatusLabel($issueRaw),
+                $this->flattenScheduleForExport($scheduleRaw),
+                round(((float) ($row->agg_income_total ?? 0)) / 1000000, 4),
+                round(((float) ($row->agg_expense_total ?? 0)) / 1000000, 4),
+                round(((float) ($row->agg_debt_total ?? 0)) / 1000000, 4),
+                (int) ($row->agg_payment_count ?? 0),
+                $this->formatDate($row->agg_last_payment_date ?? null),
+            ];
+
+            $contractValues = [];
+            foreach ($contractColumns as $column) {
+                $contractValues[] = $row->{'contract_' . $column} ?? '';
+            }
+
+            $paymentValues = [];
+            foreach ($paymentColumns as $column) {
+                $paymentValues[] = $row->{'payment_' . $column} ?? '';
+            }
+
+            $sheetRows[] = array_merge($base, $contractValues, $paymentValues);
+        }
+
+        $fileName = 'system_all_in_one_' . now()->format('Ymd_His') . '.xlsx';
+
+        return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => 'All_In_One', 'rows' => $sheetRows],
+        ]);
+    }
+
+    private function flattenScheduleForExport($scheduleRaw): string
+    {
+        if (!$scheduleRaw || !is_string($scheduleRaw)) {
+            return '';
+        }
+
+        $decoded = json_decode($scheduleRaw, true);
+        if (!is_array($decoded) || empty($decoded)) {
+            return (string) $scheduleRaw;
+        }
+
+        $parts = [];
+        foreach ($decoded as $date => $amount) {
+            try {
+                $formattedDate = \Carbon\Carbon::parse((string) $date)->format('d.m.Y');
+            } catch (\Throwable $e) {
+                $formattedDate = (string) $date;
+            }
+
+            $parts[] = $formattedDate . ': ' . $this->formatNumber(((float) $amount) / 1000000, 4);
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    private function exportHomePaymentsXlsx(array $payments, array $filters)
+    {
+        $rows = [[
+            'ID',
+            'Сана',
+            'Шартнома ID',
+            'Туман',
+            'Тур',
+            'Оқим',
+            'Сумма (сўм)',
+            'Йил',
+            'Ой',
+            'Компания',
+            'ИНН',
+            'Тўлов мақсади',
+            'Инвестор',
+            'Шартнома рақами',
+            'Шартнома ҳолати',
+        ]];
+
+        foreach ($payments as $payment) {
+            $rows[] = [
+                (int) ($payment->id ?? 0),
+                $this->formatDate($payment->payment_date ?? null),
+                (int) ($payment->contract_id ?? 0),
+                (string) ($payment->district ?? ''),
+                (string) ($payment->type ?? ''),
+                (string) ($payment->flow ?? ''),
+                (float) ($payment->amount ?? 0),
+                (string) ($payment->year ?? ''),
+                (string) ($payment->month ?? ''),
+                (string) ($payment->company_name ?? ''),
+                (string) ($payment->inn ?? ''),
+                (string) ($payment->payment_purpose ?? ''),
+                (string) ($payment->investor_name ?? ''),
+                (string) ($payment->contract_number ?? ''),
+                (string) ($payment->contract_status ?? ''),
+            ];
+        }
+
+        $filterRows = [
+            ['Фильтр', 'Қиймат'],
+            ['Туман', $filters['district'] ?: 'Барчаси'],
+            ['Йил', $filters['year'] ?: 'Барчаси'],
+            ['Ой', $filters['month'] ?: 'Барчаси'],
+            ['Тур', $filters['type'] ?: 'Барчаси'],
+            ['Сана (дан)', $filters['date_from'] ?: '—'],
+            ['Сана (гача)', $filters['date_to'] ?: '—'],
+            ['Қидирув', $filters['search'] ?: '—'],
+            ['Саралаш', ($filters['sort'] ?: 'id') . ' ' . strtoupper((string) ($filters['dir'] ?: 'desc'))],
+            ['Экспорт санаси', now()->format('d.m.Y H:i')],
+        ];
+
+        $fileName = 'apz_tolovlar_' . now()->format('Ymd_His') . '.xlsx';
+
+        return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => 'Filters', 'rows' => $filterRows],
+            ['name' => 'APZ_Tolovlar', 'rows' => $rows],
+        ]);
+    }
+
+    private function exportSummary2Xlsx(array $contracts, ?string $district, string $status, string $issue, ?string $searchTerm)
+    {
+        $rows = [[
+            'ID',
+            'Компания',
+            'Туман',
+            'ИНН',
+            'Шартнома рақами',
+            'Шартнома санаси',
+            'Ҳолат',
+            'Қурилиш ҳолати',
+            'Шартнома қиймати (млн)',
+            'Факт тўлов (млн)',
+            'Қолдиқ (млн)',
+            'Бажарилиш %',
+            'Тўлов шарти',
+            'Жадвал сони',
+            'Тўловлар сони',
+        ]];
+
+        foreach ($contracts as $contract) {
+            $plan = (float) ($contract->contract_value ?? 0);
+            $fact = (float) ($contract->total_paid ?? 0);
+            $balance = $plan - $fact;
+            $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
+
+            $rows[] = [
+                (int) ($contract->contract_id ?? 0),
+                (string) ($contract->investor_name ?? ''),
+                (string) ($contract->district ?? ''),
+                (string) ($contract->inn ?? ''),
+                (string) ($contract->contract_number ?? ''),
+                $this->formatDate($contract->contract_date ?? null),
+                $contract->status_label ?? $this->contractStatusLabel($contract->contract_status ?? null),
+                $contract->issue_label ?? $this->issueStatusLabel($contract->construction_issues ?? null),
+                round($plan / 1000000, 2),
+                round($fact / 1000000, 2),
+                round($balance / 1000000, 2),
+                $pct,
+                (string) ($contract->payment_terms ?? ''),
+                (int) ($contract->installments_count ?? 0),
+                (int) ($contract->payment_count ?? 0),
+            ];
+        }
+
+        $filterRows = [
+            ['Фильтр', 'Қиймат'],
+            ['Туман', $district ?: 'Барчаси'],
+            ['Ҳолат', $status],
+            ['Муаммо', $issue],
+            ['Қидирув', $searchTerm ?: '—'],
+            ['Экспорт санаси', now()->format('d.m.Y H:i')],
+        ];
+
+        $fileName = 'summary2_' . now()->format('Ymd_His') . '.xlsx';
+
+        return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => 'Filters', 'rows' => $filterRows],
+            ['name' => 'Summary2', 'rows' => $rows],
+        ]);
+    }
+
+    private function exportDebtsXlsx(array $contracts, string $status, string $issue, ?string $district, ?string $searchTerm, bool $onlyDebtors)
+    {
+        $rows = [[
+            'ID',
+            'Компания',
+            'Туман',
+            'Шартнома рақами',
+            'Шартнома санаси',
+            'Ҳолат',
+            'Қурилиш ҳолати',
+            'Шартнома қиймати (млн)',
+            'Факт тўлов (млн)',
+            'Қарздорлик (млн)',
+            'План-Факт (млн)',
+            'Бажарилиш %',
+        ]];
+
+        foreach ($contracts as $contract) {
+            $plan = (float) ($contract->contract_value ?? 0);
+            $fact = (float) ($contract->total_paid ?? 0);
+            $debt = (float) ($contract->debt ?? max($plan - $fact, 0));
+            $diff = (float) ($contract->plan_fact_diff ?? ($plan - $fact));
+            $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
+
+            $rows[] = [
+                (int) ($contract->contract_id ?? 0),
+                (string) ($contract->investor_name ?? ''),
+                (string) ($contract->district ?? ''),
+                (string) ($contract->contract_number ?? ''),
+                $this->formatDate($contract->contract_date ?? null),
+                $contract->status_label ?? $this->contractStatusLabel($contract->contract_status ?? null),
+                $contract->issue_label ?? $this->issueStatusLabel($contract->construction_issues ?? null),
+                round($plan / 1000000, 2),
+                round($fact / 1000000, 2),
+                round($debt / 1000000, 2),
+                round($diff / 1000000, 2),
+                $pct,
+            ];
+        }
+
+        $filterRows = [
+            ['Фильтр', 'Қиймат'],
+            ['Туман', $district ?: 'Барчаси'],
+            ['Ҳолат', $status],
+            ['Муаммо', $issue],
+            ['Қарздорлар', $onlyDebtors ? 'Фақат қарздорлар' : 'Барчаси'],
+            ['Қидирув', $searchTerm ?: '—'],
+            ['Экспорт санаси', now()->format('d.m.Y H:i')],
+        ];
+
+        $fileName = 'debts_' . now()->format('Ymd_His') . '.xlsx';
+
+        return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => 'Filters', 'rows' => $filterRows],
+            ['name' => 'Debts', 'rows' => $rows],
+        ]);
+    }
+
+    private function exportDashboardXlsx(array $viewData)
+    {
+        $summaryRows = [[
+            'Номи', 'Шартномалар сони', 'Шартномалар қиймати (млн)', 'Жами тушум (млн)', 'Жами қарздорлик (млн)', 'Бажарилиш %'
+        ]];
+        foreach (($viewData['monitoringSummaryRows'] ?? []) as $row) {
+            $summaryRows[] = [
+                (string) ($row['label'] ?? ''),
+                (int) ($row['contracts_count'] ?? 0),
+                round(((float) ($row['contract_value'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['total_paid'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['debt_total'] ?? 0)) / 1000000, 2),
+                (float) ($row['pct'] ?? 0),
+            ];
+        }
+
+        $districtRows = [[
+            'Туман', 'Шартномалар сони', 'Шартнома қиймати (млн)', 'Жами тушум (млн)', 'Қарздорлик (млн)', 'Муаммоли', 'Муаммосиз', 'Бажарилиш %'
+        ]];
+        foreach (($viewData['monitoringDistrictRows'] ?? []) as $row) {
+            $districtRows[] = [
+                (string) ($row->district ?? ''),
+                (int) ($row->contracts_count ?? 0),
+                round(((float) ($row->contract_value ?? 0)) / 1000000, 2),
+                round(((float) ($row->total_paid ?? 0)) / 1000000, 2),
+                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
+                (int) ($row->problem_count ?? 0),
+                (int) ($row->no_problem_count ?? 0),
+                (float) ($row->pct ?? 0),
+            ];
+        }
+
+        $topDebtRows = [[
+            'Компания', 'Туман', 'Шартнома', 'Қарздорлик (млн)', 'Муаммо'
+        ]];
+        foreach (($viewData['monitoringTopDebts'] ?? []) as $row) {
+            $topDebtRows[] = [
+                (string) ($row->investor_name ?? ''),
+                (string) ($row->district ?? ''),
+                (string) ($row->contract_number ?? ''),
+                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
+                (string) ($row->issue_label ?? '—'),
+            ];
+        }
+
+        $newContractRows = [[
+            'Сана', 'Шартнома сони', 'Шартнома қиймати (млн)', 'Шартнома қарзи (млн)'
+        ]];
+        foreach (($viewData['monitoringNewContracts'] ?? []) as $row) {
+            $newContractRows[] = [
+                $this->formatDate($row->contract_day ?? null),
+                (int) ($row->contracts_count ?? 0),
+                round(((float) ($row->contract_value ?? 0)) / 1000000, 2),
+                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
+            ];
+        }
+
+        $monthlyRows = [[
+            'Ой', 'План (млн)', 'Факт (млн)', 'АПЗ тўлов (млн)', 'Пеня (млн)', 'Қайтариш (млн)', 'План-Факт (млн)'
+        ]];
+        foreach (($viewData['monitoringMonthlyRows'] ?? []) as $row) {
+            $monthlyRows[] = [
+                (string) ($row['month_label'] ?? ''),
+                round(((float) ($row['plan_total'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['fact_total'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['apz_payment'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['penalty_payment'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['apz_refund'] ?? 0)) / 1000000, 2),
+                round(((float) ($row['plan_fact_diff'] ?? 0)) / 1000000, 2),
+            ];
+        }
+
+        $dailyRows = [[
+            'Кун', 'Жами (млн)', 'АПЗ тўлови (млн)', 'Қайтариш (млн)', 'Пеня (млн)'
+        ]];
+        foreach (($viewData['monitoringDailyRows'] ?? []) as $row) {
+            $dailyRows[] = [
+                $this->formatDate($row->pay_day ?? null),
+                round(((float) ($row->total_income ?? 0)) / 1000000, 2),
+                round(((float) ($row->apz_payment ?? 0)) / 1000000, 2),
+                round(((float) ($row->apz_refund ?? 0)) / 1000000, 2),
+                round(((float) ($row->penalty_payment ?? 0)) / 1000000, 2),
+            ];
+        }
+
+        $filtersRows = [
+            ['Фильтр', 'Қиймат'],
+            ['Туман', (string) ($viewData['selectedMonitoringDistrict'] ?? 'Барчаси') ?: 'Барчаси'],
+            ['Ҳолат', (string) ($viewData['selectedMonitoringStatus'] ?? 'all')],
+            ['Муаммо', (string) ($viewData['selectedMonitoringIssue'] ?? 'all')],
+            ['Қидирув', (string) ($viewData['monitoringSearch'] ?? '—') ?: '—'],
+            ['Экспорт санаси', now()->format('d.m.Y H:i')],
+        ];
+
+        $fileName = 'dashboard_monitoring_' . now()->format('Ymd_His') . '.xlsx';
+
+        return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => 'Filters', 'rows' => $filtersRows],
+            ['name' => 'Summary', 'rows' => $summaryRows],
+            ['name' => 'Districts', 'rows' => $districtRows],
+            ['name' => 'TopDebts', 'rows' => $topDebtRows],
+            ['name' => 'NewContracts', 'rows' => $newContractRows],
+            ['name' => 'Monthly', 'rows' => $monthlyRows],
+            ['name' => 'Daily', 'rows' => $dailyRows],
+        ]);
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // CACHE MANAGEMENT
     // ──────────────────────────────────────────────────────────────────────
@@ -1027,6 +1486,7 @@ class TransactionController extends Controller
             'apz_filters', 'apz_summary', 'apz_dashboard_data', 'apz_dashboard_data_v2',
             'apz_dashboard_data_v3_' . md5('all|all|all|'),
             'apz_dashboard_data_v4_' . md5('all|all|all|'),
+            'apz_dashboard_data_v5_' . md5('all|all|all|'),
             'apz_summary_report_all',
             'apz_summary2_' . md5('all|all|all|'),
             'apz_summary2_' . md5('all|in_progress|all|'),
@@ -1180,6 +1640,78 @@ class TransactionController extends Controller
         };
     }
 
+    private function ensureDashboardMonitoringLinks(array &$viewData, ?string $district, string $status, string $issue, ?string $search): void
+    {
+        $cleanQuery = static function (array $params): array {
+            return array_filter($params, static fn ($value) => !($value === null || $value === ''));
+        };
+
+        $summaryBase = [
+            'district' => $district,
+            'status' => $status !== 'all' ? $status : null,
+            'issue' => $issue !== 'all' ? $issue : null,
+            'search' => $search,
+        ];
+
+        $debtsBase = [
+            'district' => $district,
+            'status' => $status,
+            'issue' => $issue !== 'all' ? $issue : null,
+            'search' => $search,
+            'debtors' => null,
+        ];
+
+        if (isset($viewData['monitoringSummaryRows']) && is_array($viewData['monitoringSummaryRows'])) {
+            foreach ($viewData['monitoringSummaryRows'] as &$row) {
+                if (!is_array($row) || !empty($row['list_url'])) {
+                    continue;
+                }
+
+                $label = (string) ($row['label'] ?? '');
+
+                $row['list_url'] = match ($label) {
+                    'Муаммоли' => route('summary2', $cleanQuery(array_merge($summaryBase, ['issue' => 'problem']))),
+                    'Муаммосиз' => route('summary2', $cleanQuery(array_merge($summaryBase, ['issue' => 'no_problem']))),
+                    'Қарздорлар' => route('debts', $cleanQuery(array_merge($debtsBase, ['debtors' => 1]))),
+                    default => route('summary2', $cleanQuery($summaryBase)),
+                };
+            }
+            unset($row);
+        }
+
+        if (isset($viewData['monitoringDistrictRows']) && is_array($viewData['monitoringDistrictRows'])) {
+            foreach ($viewData['monitoringDistrictRows'] as $row) {
+                if (!is_object($row)) {
+                    continue;
+                }
+
+                $rowDistrict = $row->district ?? null;
+
+                if (empty($row->list_url)) {
+                    $row->list_url = route('summary2', $cleanQuery(array_merge($summaryBase, ['district' => $rowDistrict])));
+                }
+                if (empty($row->problem_url)) {
+                    $row->problem_url = route('summary2', $cleanQuery(array_merge($summaryBase, [
+                        'district' => $rowDistrict,
+                        'issue' => 'problem',
+                    ])));
+                }
+                if (empty($row->no_problem_url)) {
+                    $row->no_problem_url = route('summary2', $cleanQuery(array_merge($summaryBase, [
+                        'district' => $rowDistrict,
+                        'issue' => 'no_problem',
+                    ])));
+                }
+                if (empty($row->debt_url)) {
+                    $row->debt_url = route('debts', $cleanQuery(array_merge($debtsBase, [
+                        'district' => $rowDistrict,
+                        'debtors' => 1,
+                    ])));
+                }
+            }
+        }
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     // MONITORING TABLES DATA for dashboard
     // ──────────────────────────────────────────────────────────────────────
@@ -1191,6 +1723,35 @@ class TransactionController extends Controller
         $search   = isset($filters['search']) ? trim((string) $filters['search']) : null;
         if ($district === '') $district = null;
         if ($search === '') $search = null;
+
+        $cleanQuery = static function (array $params): array {
+            return array_filter($params, static fn ($value) => !($value === null || $value === ''));
+        };
+
+        $buildSummaryListUrl = function (array $overrides = []) use ($cleanQuery, $district, $status, $issue, $search): string {
+            $params = [
+                'district' => $district,
+                'status' => $status !== 'all' ? $status : null,
+                'issue' => $issue !== 'all' ? $issue : null,
+                'search' => $search,
+            ];
+
+            $params = array_merge($params, $overrides);
+            return route('summary2', $cleanQuery($params));
+        };
+
+        $buildDebtsListUrl = function (array $overrides = []) use ($cleanQuery, $district, $status, $issue, $search): string {
+            $params = [
+                'district' => $district,
+                'status' => $status,
+                'issue' => $issue !== 'all' ? $issue : null,
+                'search' => $search,
+                'debtors' => null,
+            ];
+
+            $params = array_merge($params, $overrides);
+            return route('debts', $cleanQuery($params));
+        };
 
         $problemWhere   = $this->buildConstructionIssueWhereSql('problem', 'c');
         $noProblemWhere = $this->buildConstructionIssueWhereSql('no_problem', 'c');
@@ -1234,7 +1795,7 @@ class TransactionController extends Controller
         $scopeDebt     = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']));
         $scopeFullPaid = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > 0 AND COALESCE(paid.total_paid, 0) >= COALESCE(c.contract_value, 0))']));
 
-        $toRow = function (string $label, object $row) {
+        $toRow = function (string $label, object $row, ?string $listUrl = null) {
             $plan = (float) ($row->contract_value ?? 0);
             $fact = (float) ($row->total_paid ?? 0);
             return [
@@ -1244,15 +1805,16 @@ class TransactionController extends Controller
                 'total_paid'      => $fact,
                 'debt_total'      => (float) ($row->debt_total ?? 0),
                 'pct'             => $plan > 0 ? round($fact / $plan * 100, 1) : 0,
+                'list_url'        => $listUrl,
             ];
         };
 
         $monitoringSummaryRows = [
-            $toRow('Фильтр бўйича шартномалар', $scopeStats),
-            $toRow('Муаммоли', $scopeProblem),
-            $toRow('Муаммосиз', $scopeClear),
-            $toRow('100% бажарилган', $scopeFullPaid),
-            $toRow('Қарздорлар', $scopeDebt),
+            $toRow('Фильтр бўйича шартномалар', $scopeStats, $buildSummaryListUrl()),
+            $toRow('Муаммоли', $scopeProblem, $buildSummaryListUrl(['issue' => 'problem'])),
+            $toRow('Муаммосиз', $scopeClear, $buildSummaryListUrl(['issue' => 'no_problem'])),
+            $toRow('100% бажарилган', $scopeFullPaid, $buildSummaryListUrl()),
+            $toRow('Қарздорлар', $scopeDebt, $buildDebtsListUrl(['debtors' => 1])),
         ];
 
         $districtConditions = array_merge($baseWhere, ["c.district IS NOT NULL AND c.district != ''"]);
@@ -1277,6 +1839,19 @@ class TransactionController extends Controller
             $plan = (float) ($row->contract_value ?? 0);
             $fact = (float) ($row->total_paid ?? 0);
             $row->pct = $plan > 0 ? round($fact / $plan * 100, 1) : 0;
+            $row->list_url = $buildSummaryListUrl(['district' => $row->district]);
+            $row->problem_url = $buildSummaryListUrl([
+                'district' => $row->district,
+                'issue' => 'problem',
+            ]);
+            $row->no_problem_url = $buildSummaryListUrl([
+                'district' => $row->district,
+                'issue' => 'no_problem',
+            ]);
+            $row->debt_url = $buildDebtsListUrl([
+                'district' => $row->district,
+                'debtors' => 1,
+            ]);
         }
 
         $topDebtConditions = array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']);
