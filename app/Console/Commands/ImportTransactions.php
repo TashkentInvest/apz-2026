@@ -8,9 +8,9 @@ use Illuminate\Support\Facades\DB;
 class ImportTransactions extends Command
 {
     protected $signature   = 'apz:import-payments {--fresh : Truncate table before importing}';
-    protected $description = 'Import APZ payments from fakt-apz.csv into apz_payments table';
+    protected $description = 'Import APZ payments from fakt_apz.csv into apz_payments table';
 
-    // fakt-apz.csv supports both:
+    // fakt_apz.csv supports both:
     // - legacy 24-column structure
     // - compact 13-column structure
 
@@ -18,7 +18,7 @@ class ImportTransactions extends Command
     {
         ini_set('memory_limit', '512M');
 
-        $csvPath = storage_path('dataset-apz/fakt-apz.csv');
+        $csvPath = storage_path('dataset-apz/fakt_apz.csv');
 
         if (!file_exists($csvPath)) {
             $this->error("CSV not found: {$csvPath}");

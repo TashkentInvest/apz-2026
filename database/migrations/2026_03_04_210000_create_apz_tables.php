@@ -45,7 +45,7 @@ return new class extends Migration
             $table->index('inn');
         });
 
-        // ── APZ Payments (fakt-apz.csv) ─────────────────────────────────────
+        // ── APZ Payments (fakt_apz.csv) ─────────────────────────────────────
         Schema::create('apz_payments', function (Blueprint $table) {
             $table->id();
             $table->date('payment_date')->nullable();            // Дата

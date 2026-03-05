@@ -13,7 +13,7 @@ class ExportApzDatasets extends Command
         {--year= : Filter by year}
         {--path=dataset-apz : Directory inside storage/ to write CSV files}';
 
-    protected $description = 'Export APZ data into fakt-apz.csv and grafik_apz.csv';
+    protected $description = 'Export APZ data into fakt_apz.csv and grafik_apz.csv';
 
     public function handle(): int
     {
@@ -27,7 +27,7 @@ class ExportApzDatasets extends Command
 
         $this->newLine();
         $this->info('✓ Export completed');
-        $this->line('fakt-apz.csv rows: ' . (int) ($result['fakt_rows'] ?? 0));
+        $this->line('fakt_apz.csv rows: ' . (int) ($result['fakt_rows'] ?? 0));
         $this->line('grafik_apz.csv rows: ' . (int) ($result['grafik_rows'] ?? 0));
         $this->line('Directory: ' . (string) ($result['directory'] ?? ''));
 

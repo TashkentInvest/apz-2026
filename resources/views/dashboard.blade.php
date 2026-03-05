@@ -84,7 +84,7 @@
                 кузатиш ва таҳлил қилиш.
             </div>
             <div style="font-size:.82rem;color:#6e788b;line-height:1.8">
-                <div>&bull; fakt-apz.csv — ҳақиқий APZ тўловлари</div>
+                <div>&bull; fakt_apz.csv — ҳақиқий APZ тўловлари</div>
                 <div>&bull; grafik_apz.csv — шартнома ва режа-жадвал</div>
                 <div>&bull; ID буйича жойн уланган</div>
                 <div>&bull; План — Факт ҳисоботи</div>

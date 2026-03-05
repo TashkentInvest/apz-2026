@@ -22,7 +22,7 @@ class SimpleXlsxExportService
             throw new \RuntimeException('Cannot create export directory: ' . $outputDir);
         }
 
-        $faktPath = $outputDir . DIRECTORY_SEPARATOR . 'fakt-apz.csv';
+        $faktPath = $outputDir . DIRECTORY_SEPARATOR . 'fakt_apz.csv';
         $grafikPath = $outputDir . DIRECTORY_SEPARATOR . 'grafik_apz.csv';
 
         $paymentsCount = $this->writePaymentsCsv($faktPath, $normalizedFilters);
