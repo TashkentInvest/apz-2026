@@ -1585,109 +1585,519 @@ class TransactionController extends Controller
 
     private function exportDashboardXlsx(array $viewData)
     {
-        $summaryRows = [[
-            'Номи', 'Шартномалар сони', 'Шартномалар қиймати (млн)', 'Жами тушум (млн)', 'Жами қарздорлик (млн)', 'Бажарилиш %'
-        ]];
-        foreach (($viewData['monitoringSummaryRows'] ?? []) as $row) {
-            $summaryRows[] = [
-                (string) ($row['label'] ?? ''),
-                (int) ($row['contracts_count'] ?? 0),
-                round(((float) ($row['contract_value'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['total_paid'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['debt_total'] ?? 0)) / 1000000, 2),
-                (float) ($row['pct'] ?? 0),
-            ];
-        }
-
-        $districtRows = [[
-            'Туман', 'Шартномалар сони', 'Шартнома қиймати (млн)', 'Жами тушум (млн)', 'Қарздорлик (млн)', 'Муаммоли', 'Муаммосиз', 'Бажарилиш %'
-        ]];
-        foreach (($viewData['monitoringDistrictRows'] ?? []) as $row) {
-            $districtRows[] = [
-                (string) ($row->district ?? ''),
-                (int) ($row->contracts_count ?? 0),
-                round(((float) ($row->contract_value ?? 0)) / 1000000, 2),
-                round(((float) ($row->total_paid ?? 0)) / 1000000, 2),
-                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
-                (int) ($row->problem_count ?? 0),
-                (int) ($row->no_problem_count ?? 0),
-                (float) ($row->pct ?? 0),
-            ];
-        }
-
-        $topDebtRows = [[
-            'Компания', 'Туман', 'Шартнома', 'Қарздорлик (млн)', 'Муаммо'
-        ]];
-        foreach (($viewData['monitoringTopDebts'] ?? []) as $row) {
-            $topDebtRows[] = [
-                (string) ($row->investor_name ?? ''),
-                (string) ($row->district ?? ''),
-                (string) ($row->contract_number ?? ''),
-                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
-                (string) ($row->issue_label ?? '—'),
-            ];
-        }
-
-        $newContractRows = [[
-            'Сана', 'Шартнома сони', 'Шартнома қиймати (млн)', 'Шартнома қарзи (млн)'
-        ]];
-        foreach (($viewData['monitoringNewContracts'] ?? []) as $row) {
-            $newContractRows[] = [
-                $this->formatDate($row->contract_day ?? null),
-                (int) ($row->contracts_count ?? 0),
-                round(((float) ($row->contract_value ?? 0)) / 1000000, 2),
-                round(((float) ($row->debt_total ?? 0)) / 1000000, 2),
-            ];
-        }
-
-        $monthlyRows = [[
-            'Ой', 'План (млн)', 'Факт (млн)', 'АПЗ тўлов (млн)', 'Пеня (млн)', 'Қайтариш (млн)', 'План-Факт (млн)'
-        ]];
-        foreach (($viewData['monitoringMonthlyRows'] ?? []) as $row) {
-            $monthlyRows[] = [
-                (string) ($row['month_label'] ?? ''),
-                round(((float) ($row['plan_total'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['fact_total'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['apz_payment'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['penalty_payment'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['apz_refund'] ?? 0)) / 1000000, 2),
-                round(((float) ($row['plan_fact_diff'] ?? 0)) / 1000000, 2),
-            ];
-        }
-
-        $dailyRows = [[
-            'Кун', 'Жами (млн)', 'АПЗ тўлови (млн)', 'Қайтариш (млн)', 'Пеня (млн)'
-        ]];
-        foreach (($viewData['monitoringDailyRows'] ?? []) as $row) {
-            $dailyRows[] = [
-                $this->formatDate($row->pay_day ?? null),
-                round(((float) ($row->total_income ?? 0)) / 1000000, 2),
-                round(((float) ($row->apz_payment ?? 0)) / 1000000, 2),
-                round(((float) ($row->apz_refund ?? 0)) / 1000000, 2),
-                round(((float) ($row->penalty_payment ?? 0)) / 1000000, 2),
-            ];
-        }
-
-        $filtersRows = [
-            ['Фильтр', 'Қиймат'],
-            ['Туман', (string) ($viewData['selectedMonitoringDistrict'] ?? 'Барчаси') ?: 'Барчаси'],
-            ['Ҳолат', (string) ($viewData['selectedMonitoringStatus'] ?? 'all')],
-            ['Муаммо', (string) ($viewData['selectedMonitoringIssue'] ?? 'all')],
-            ['Қидирув', (string) ($viewData['monitoringSearch'] ?? '—') ?: '—'],
-            ['Экспорт санаси', now()->format('d.m.Y H:i')],
-        ];
-
+        $sheetRows = $this->buildDashboardStructuredContractPaymentRows($viewData);
         $fileName = 'dashboard_monitoring_' . now()->format('Ymd_His') . '.xlsx';
 
         return app(SimpleXlsxExportService::class)->download($fileName, [
-            ['name' => 'Filters', 'rows' => $filtersRows],
-            ['name' => 'Summary', 'rows' => $summaryRows],
-            ['name' => 'Districts', 'rows' => $districtRows],
-            ['name' => 'TopDebts', 'rows' => $topDebtRows],
-            ['name' => 'NewContracts', 'rows' => $newContractRows],
-            ['name' => 'Monthly', 'rows' => $monthlyRows],
-            ['name' => 'Daily', 'rows' => $dailyRows],
+            ['name' => 'Dashboard', 'rows' => $sheetRows],
         ]);
+    }
+
+    private function buildDashboardStructuredContractPaymentRows(array $viewData): array
+    {
+        $grafikHeaders = $this->buildGrafikScheduleHeaders();
+
+        $contractHeaders = [
+            'ID',
+            'Туман',
+            'МФЙ',
+            'манзил тўлиқ',
+            'Қурилиш ҳажми (метр.куп)',
+            'Коэффицент',
+            'Зона',
+            'Рухсатнома',
+            'АПЗ номер',
+            'Кенгаш хулосаси',
+            'Йиғма экспертиза хулосаси',
+            'қурилишда муамолари ҳолати',
+            'Объект тури',
+            'БУЮРТМАЧИ ТУРИ',
+            'Инвестор номи',
+            'ИНН/ПИНФЛ',
+            'телефон номер',
+            'инвестор манзили',
+            'шартнома номер',
+            'шартнома санаси',
+            'Шартнома ҳолати',
+            'Шартнома қиймати',
+            'Тўлов шарти',
+            'reja-jadval',
+        ];
+
+        $paymentHeaders = [
+            'Дата',
+            'ID',
+            'ИНН',
+            ' Сумма дебет ',
+            ' Сумма кредит ',
+            'Назначение платежа',
+            'Поток',
+            'Месяц',
+            ' Cумма ',
+            'Район',
+            'Тип',
+            'ГОД',
+            'Корхона номи',
+        ];
+
+        $sheetRows = [array_merge(['X', 'X позиция'], $contractHeaders, $grafikHeaders, $paymentHeaders)];
+
+        $district = trim((string) ($viewData['selectedMonitoringDistrict'] ?? ''));
+        $status = $this->normalizeRequestedStatus((string) ($viewData['selectedMonitoringStatus'] ?? 'all'));
+        $issue = $this->normalizeRequestedIssue((string) ($viewData['selectedMonitoringIssue'] ?? 'all'));
+        $search = trim((string) ($viewData['monitoringSearch'] ?? ''));
+
+        $where = [];
+        $params = [];
+
+        if ($district !== '') {
+            $where[] = 'c.district = ?';
+            $params[] = $district;
+        }
+
+        $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
+        if ($statusWhere) {
+            $where[] = $statusWhere;
+        }
+
+        $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
+        if ($issueWhere) {
+            $where[] = $issueWhere;
+        }
+
+        if ($search !== '') {
+            $where[] = '(c.investor_name LIKE ? OR c.contract_number LIKE ? OR c.inn LIKE ? OR CAST(c.contract_id AS CHAR) LIKE ?)';
+            $searchLike = '%' . $search . '%';
+            $params[] = $searchLike;
+            $params[] = $searchLike;
+            $params[] = $searchLike;
+            $params[] = $searchLike;
+        }
+
+        $whereSql = $where ? ('WHERE ' . implode(' AND ', $where)) : '';
+
+        $rawContracts = DB::select(
+            "SELECT c.id as row_id, c.contract_id, c.district, c.mfy, c.address, c.build_volume,
+                    c.coefficient, c.zone, c.permit, c.apz_number,
+                    c.council_decision, c.expertise, c.construction_issues,
+                    c.object_type, c.client_type, c.investor_name, c.inn,
+                    c.phone, c.investor_address, c.contract_number,
+                    c.contract_date, c.contract_status, c.contract_value,
+                    c.payment_terms, c.installments_count, c.payment_schedule
+             FROM apz_contracts c
+             {$whereSql}
+             ORDER BY c.id",
+            $params
+        );
+
+        if (empty($rawContracts)) {
+            return $sheetRows;
+        }
+
+        $contracts = [];
+        $seenContractKeys = [];
+
+        foreach ($rawContracts as $rawContract) {
+            $contractIdRaw = $rawContract->contract_id;
+            $contractKey = ($contractIdRaw !== null && $contractIdRaw !== '')
+                ? ('cid:' . (string) $contractIdRaw)
+                : ('row:' . (string) ($rawContract->row_id ?? '0'));
+
+            if (isset($seenContractKeys[$contractKey])) {
+                continue;
+            }
+
+            $seenContractKeys[$contractKey] = true;
+            $contracts[] = $rawContract;
+        }
+
+        $contractIds = [];
+        $seenContractIds = [];
+        foreach ($contracts as $contract) {
+            $contractId = (int) ($contract->contract_id ?? 0);
+            if ($contractId > 0 && !isset($seenContractIds[$contractId])) {
+                $seenContractIds[$contractId] = true;
+                $contractIds[] = $contractId;
+            }
+        }
+
+        $paymentsByContract = [];
+        if (!empty($contractIds)) {
+            foreach (array_chunk($contractIds, 1000) as $contractIdsChunk) {
+                $placeholders = implode(',', array_fill(0, count($contractIdsChunk), '?'));
+
+                $payments = DB::select(
+                    "SELECT p.id, p.payment_date, p.contract_id as payment_contract_id,
+                            p.inn as payment_inn, p.debit_amount, p.credit_amount,
+                            p.payment_purpose, p.flow, p.month, p.amount,
+                            p.district as payment_district, p.type as payment_type,
+                            p.year as payment_year, p.company_name
+                     FROM apz_payments p
+                     WHERE p.contract_id IN ({$placeholders})
+                     ORDER BY p.contract_id, p.payment_date, p.id",
+                    $contractIdsChunk
+                );
+
+                foreach ($payments as $payment) {
+                    $paymentContractId = (int) ($payment->payment_contract_id ?? 0);
+                    if (!isset($paymentsByContract[$paymentContractId])) {
+                        $paymentsByContract[$paymentContractId] = [];
+                    }
+                    $paymentsByContract[$paymentContractId][] = $payment;
+                }
+            }
+        }
+
+        $xGroup = 0;
+
+        foreach ($contracts as $contract) {
+            $xGroup++;
+
+            $scheduleByDate = $this->parseScheduleByDate($contract->payment_schedule ?? null);
+            $scheduleCells = [];
+
+            foreach ($grafikHeaders as $headerDate) {
+                $amount = (float) ($scheduleByDate[$headerDate] ?? 0);
+                $scheduleCells[] = $amount > 0 ? round($amount, 2) : '';
+            }
+
+            $contractDate = !empty($contract->contract_date)
+                ? $this->formatDate((string) $contract->contract_date)
+                : '';
+
+            $contractCells = [
+                (int) ($contract->contract_id ?? 0),
+                (string) ($contract->district ?? ''),
+                (string) ($contract->mfy ?? ''),
+                (string) ($contract->address ?? ''),
+                (float) ($contract->build_volume ?? 0),
+                (string) ($contract->coefficient ?? ''),
+                (string) ($contract->zone ?? ''),
+                (string) ($contract->permit ?? ''),
+                (string) ($contract->apz_number ?? ''),
+                (string) ($contract->council_decision ?? ''),
+                (string) ($contract->expertise ?? ''),
+                (string) ($contract->construction_issues ?? ''),
+                (string) ($contract->object_type ?? ''),
+                (string) ($contract->client_type ?? ''),
+                (string) ($contract->investor_name ?? ''),
+                (string) ($contract->inn ?? ''),
+                (string) ($contract->phone ?? ''),
+                (string) ($contract->investor_address ?? ''),
+                (string) ($contract->contract_number ?? ''),
+                $contractDate,
+                (string) ($contract->contract_status ?? ''),
+                round((float) ($contract->contract_value ?? 0), 2),
+                (string) ($contract->payment_terms ?? ''),
+                (int) ($contract->installments_count ?? 0),
+            ];
+
+            $contractId = (int) ($contract->contract_id ?? 0);
+            $contractPayments = $paymentsByContract[$contractId] ?? [];
+
+            if (empty($contractPayments)) {
+                $contractPayments = [null];
+            }
+
+            foreach ($contractPayments as $position => $payment) {
+                $isFirstRow = $position === 0;
+
+                $contractCellsForRow = $isFirstRow
+                    ? $contractCells
+                    : array_fill(0, count($contractHeaders), '');
+
+                $scheduleCellsForRow = $isFirstRow
+                    ? $scheduleCells
+                    : array_fill(0, count($grafikHeaders), '');
+
+                if ($payment === null) {
+                    $paymentCells = array_fill(0, count($paymentHeaders), '');
+                } else {
+                    $paymentDate = !empty($payment->payment_date)
+                        ? $this->formatDate((string) $payment->payment_date)
+                        : '';
+
+                    $paymentCells = [
+                        $paymentDate,
+                        $payment->payment_contract_id !== null ? (int) $payment->payment_contract_id : '',
+                        (string) ($payment->payment_inn ?? ''),
+                        $payment->debit_amount !== null ? round((float) $payment->debit_amount, 2) : '',
+                        $payment->credit_amount !== null ? round((float) $payment->credit_amount, 2) : '',
+                        (string) ($payment->payment_purpose ?? ''),
+                        (string) ($payment->flow ?? ''),
+                        (string) ($payment->month ?? ''),
+                        $payment->amount !== null ? round((float) $payment->amount, 2) : '',
+                        (string) ($payment->payment_district ?? ''),
+                        (string) ($payment->payment_type ?? ''),
+                        $payment->payment_year !== null ? (int) $payment->payment_year : '',
+                        (string) ($payment->company_name ?? ''),
+                    ];
+                }
+
+                $sheetRows[] = array_merge(
+                    [$xGroup, $position + 1],
+                    $contractCellsForRow,
+                    $scheduleCellsForRow,
+                    $paymentCells
+                );
+            }
+        }
+
+        return $sheetRows;
+    }
+
+    private function appendDashboardExportSection(array &$sheetRows, string $title, array $rows, int &$xPosition, string $vectorPrefix): void
+    {
+        $sheetRows[] = [$title];
+        $sheetRows[] = ['X', 'X_Vector', '...'];
+
+        foreach ($rows as $row) {
+            $xPosition++;
+            $xVector = $vectorPrefix . '.X' . str_pad((string) $xPosition, 5, '0', STR_PAD_LEFT);
+            $values = is_array($row) ? array_values($row) : [(string) $row];
+            $sheetRows[] = array_merge([$xPosition, $xVector], $values);
+        }
+
+        $sheetRows[] = [];
+    }
+
+    private function buildDashboardKpiRows(array $viewData): array
+    {
+        $global = $viewData['global'] ?? null;
+        $contractStats = $viewData['contractStats'] ?? null;
+        $debtorsStats = $viewData['debtorsStats'] ?? null;
+
+        $totalIncome = (float) ($global->total_income ?? 0);
+        $totalRecords = (int) ($global->total_records ?? 0);
+        $dashboardDistrictCount = (int) ($viewData['dashboardDistrictCount'] ?? ($global->unique_districts ?? 0));
+        $uniqueContracts = (int) ($global->unique_contracts ?? 0);
+
+        $totalContracts = (int) ($contractStats->total ?? 0);
+        $activeContracts = (int) ($contractStats->active ?? 0);
+        $completedContracts = (int) ($contractStats->completed ?? 0);
+        $cancelledContracts = (int) ($contractStats->cancelled ?? 0);
+        $totalPlanValue = (float) ($contractStats->total_value ?? 0);
+
+        $debtorsCount = (int) ($debtorsStats->debtors_count ?? 0);
+        $debtorsTotal = (float) ($debtorsStats->debt_total ?? 0);
+        $overallPct = $totalPlanValue > 0 ? round(($totalIncome / $totalPlanValue) * 100, 1) : 0.0;
+
+        return [
+            ['Кўрсаткич', 'Қиймат', 'Изоҳ'],
+            ['Жами Приход (АПЗ), млн', round($totalIncome / 1000000, 1), number_format($totalRecords) . ' та ёзув'],
+            ['Жами Шартномалар', $totalContracts, "Фаол: {$activeContracts} · Якун: {$completedContracts} · Бекор: {$cancelledContracts}"],
+            ['Шартнома умумий қиймати, млн', round($totalPlanValue / 1000000, 1), 'режа-жадвал'],
+            ['Туманлар сони', $dashboardDistrictCount, 'Уникал шартномалар: ' . number_format($uniqueContracts)],
+            ['Қарздор шартномалар', $debtorsCount, number_format($debtorsTotal / 1000000, 1, '.', ' ') . ' млн.сўм'],
+            ['Умумий бажарилиш, %', $overallPct, 'факт / режа'],
+        ];
+    }
+
+    private function buildDashboardDrillDownRows(array $viewData): array
+    {
+        $summaryData = is_array($viewData['summaryData'] ?? null) ? $viewData['summaryData'] : [];
+        $planFact = is_array($viewData['planFact'] ?? null) ? $viewData['planFact'] : [];
+        $totals = is_array($viewData['totals'] ?? null) ? $viewData['totals'] : [];
+        $dayRows = is_array($viewData['dayRows'] ?? null) ? $viewData['dayRows'] : [];
+        $pfYear = is_array($viewData['pfYear'] ?? null) ? $viewData['pfYear'] : [];
+        $pfMonth = is_array($viewData['pfMonth'] ?? null) ? $viewData['pfMonth'] : [];
+        $pfYearPlan = is_array($viewData['pfYearPlan'] ?? null) ? $viewData['pfYearPlan'] : [];
+        $pfMonthPlan = is_array($viewData['pfMonthPlan'] ?? null) ? $viewData['pfMonthPlan'] : [];
+
+        $rows = [[
+            'Даража',
+            'Туман',
+            'Йил',
+            'Ой',
+            'Кун',
+            'Шартномалар',
+            'Жами тушум (млн)',
+            'АПЗ тўлови (млн)',
+            'Пеня (млн)',
+            'Қайтариш (млн)',
+            'План (млн)',
+            'Факт (млн)',
+            'Қолдиқ (млн)',
+            'Бажарилиш %',
+        ]];
+
+        $grandPlan = 0.0;
+        $grandFact = 0.0;
+        foreach ($planFact as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $grandPlan += (float) ($item['plan'] ?? 0);
+            $grandFact += (float) ($item['fact'] ?? 0);
+        }
+        $grandBalance = $grandPlan - $grandFact;
+        $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : 0;
+
+        $rows[] = [
+            'ЖАМИ',
+            '',
+            '',
+            '',
+            '',
+            (int) ($totals['contract_count'] ?? 0),
+            round((float) ($totals['total_income'] ?? 0), 2),
+            round((float) ($totals['apz_payment'] ?? 0), 2),
+            round((float) ($totals['penalty'] ?? 0), 2),
+            round((float) ($totals['refund'] ?? 0), 2),
+            round($grandPlan, 2),
+            round($grandFact, 2),
+            round($grandBalance, 2),
+            $grandPct,
+        ];
+
+        foreach ($summaryData as $districtRow) {
+            if (!is_array($districtRow)) {
+                continue;
+            }
+
+            $district = (string) ($districtRow['district'] ?? '');
+            $districtPlanFact = is_array($planFact[$district] ?? null)
+                ? $planFact[$district]
+                : ['plan' => 0, 'fact' => 0, 'balance' => 0, 'pct' => 0];
+
+            $rows[] = [
+                'ТУМАН',
+                $district,
+                '',
+                '',
+                '',
+                (int) ($districtRow['contract_count'] ?? 0),
+                round((float) ($districtRow['total_income'] ?? 0), 2),
+                round((float) ($districtRow['apz_payment'] ?? 0), 2),
+                round((float) ($districtRow['penalty'] ?? 0), 2),
+                round((float) ($districtRow['refund'] ?? 0), 2),
+                round((float) ($districtPlanFact['plan'] ?? 0), 2),
+                round((float) ($districtPlanFact['fact'] ?? 0), 2),
+                round((float) ($districtPlanFact['balance'] ?? 0), 2),
+                (float) ($districtPlanFact['pct'] ?? 0),
+            ];
+
+            $districtYears = is_array($dayRows[$district] ?? null) ? array_keys($dayRows[$district]) : [];
+            sort($districtYears);
+
+            foreach ($districtYears as $year) {
+                $yearRows = is_array($dayRows[$district][$year] ?? null) ? $dayRows[$district][$year] : [];
+                $yearIncome = 0.0;
+                $yearApz = 0.0;
+                $yearPen = 0.0;
+                $yearRef = 0.0;
+                $yearContracts = 0;
+
+                foreach ($yearRows as $monthRows) {
+                    if (!is_array($monthRows)) {
+                        continue;
+                    }
+
+                    foreach ($monthRows as $dayRow) {
+                        if (!is_array($dayRow)) {
+                            continue;
+                        }
+                        $yearIncome += (float) ($dayRow['income'] ?? 0);
+                        $yearApz += (float) ($dayRow['apz'] ?? 0);
+                        $yearPen += (float) ($dayRow['pen'] ?? 0);
+                        $yearRef += (float) ($dayRow['ref'] ?? 0);
+                        $yearContracts += (int) ($dayRow['cnt'] ?? 0);
+                    }
+                }
+
+                $yearPlan = (float) ($pfYearPlan[$district][$year] ?? 0);
+                $yearFact = (float) ($pfYear[$year][$district] ?? 0);
+                $yearBalance = $yearPlan > 0 ? round($yearPlan - $yearFact, 2) : 0.0;
+                $yearPct = $yearPlan > 0 ? round(($yearFact / $yearPlan) * 100, 1) : 0.0;
+
+                $rows[] = [
+                    'ЙИЛ',
+                    $district,
+                    (string) $year,
+                    '',
+                    '',
+                    $yearContracts,
+                    round($yearIncome, 2),
+                    round($yearApz, 2),
+                    round($yearPen, 2),
+                    round($yearRef, 2),
+                    round($yearPlan, 2),
+                    round($yearFact, 2),
+                    $yearPlan > 0 ? $yearBalance : 0,
+                    $yearPlan > 0 ? $yearPct : 0,
+                ];
+
+                foreach ($yearRows as $month => $monthRows) {
+                    if (!is_array($monthRows)) {
+                        continue;
+                    }
+
+                    $monthIncome = 0.0;
+                    $monthApz = 0.0;
+                    $monthPen = 0.0;
+                    $monthRef = 0.0;
+                    $monthContracts = 0;
+
+                    foreach ($monthRows as $dayRow) {
+                        if (!is_array($dayRow)) {
+                            continue;
+                        }
+                        $monthIncome += (float) ($dayRow['income'] ?? 0);
+                        $monthApz += (float) ($dayRow['apz'] ?? 0);
+                        $monthPen += (float) ($dayRow['pen'] ?? 0);
+                        $monthRef += (float) ($dayRow['ref'] ?? 0);
+                        $monthContracts += (int) ($dayRow['cnt'] ?? 0);
+                    }
+
+                    $monthPlan = (float) ($pfMonthPlan[$district][$year][$month] ?? 0);
+                    $monthFact = (float) ($pfMonth[$year][$month][$district] ?? 0);
+                    $monthBalance = $monthPlan > 0 ? round($monthPlan - $monthFact, 2) : 0.0;
+                    $monthPct = $monthPlan > 0 ? round(($monthFact / $monthPlan) * 100, 1) : 0.0;
+
+                    $rows[] = [
+                        'ОЙ',
+                        $district,
+                        (string) $year,
+                        (string) $month,
+                        '',
+                        $monthContracts,
+                        round($monthIncome, 2),
+                        round($monthApz, 2),
+                        round($monthPen, 2),
+                        round($monthRef, 2),
+                        round($monthPlan, 2),
+                        round($monthFact, 2),
+                        $monthPlan > 0 ? $monthBalance : 0,
+                        $monthPlan > 0 ? $monthPct : 0,
+                    ];
+
+                    foreach ($monthRows as $dayRow) {
+                        if (!is_array($dayRow)) {
+                            continue;
+                        }
+
+                        $rows[] = [
+                            'КУН',
+                            $district,
+                            (string) $year,
+                            (string) $month,
+                            (string) ($dayRow['date_fmt'] ?? ''),
+                            (int) ($dayRow['cnt'] ?? 0),
+                            round((float) ($dayRow['income'] ?? 0), 2),
+                            round((float) ($dayRow['apz'] ?? 0), 2),
+                            round((float) ($dayRow['pen'] ?? 0), 2),
+                            round((float) ($dayRow['ref'] ?? 0), 2),
+                            round((float) ($dayRow['plan'] ?? 0), 2),
+                            round((float) ($dayRow['fact'] ?? 0), 2),
+                            round((float) ($dayRow['balance'] ?? 0), 2),
+                            (float) ($dayRow['pct'] ?? 0),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $rows;
     }
 
     // ──────────────────────────────────────────────────────────────────────
