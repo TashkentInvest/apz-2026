@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class TransactionController extends Controller
 {
@@ -118,7 +119,7 @@ class TransactionController extends Controller
         $monitorIssue    = $this->normalizeRequestedIssue($request->filled('issue') ? (string) $request->issue : 'all');
         $monitorSearch   = $request->filled('search') ? trim((string) $request->search) : null;
 
-        $dashboardCacheKey = 'apz_dashboard_data_v3_' . md5(
+        $dashboardCacheKey = 'apz_dashboard_data_v4_' . md5(
             ($monitorDistrict ?? 'all') . '|' .
             $monitorStatus . '|' .
             $monitorIssue . '|' .
@@ -368,19 +369,53 @@ class TransactionController extends Controller
         $page         = min($page, $lastPage);
         $contracts    = array_slice($allContracts, ($page - 1) * $perPage, $perPage);
 
-        $viewData = array_merge($allData, [
-            'contracts'        => $contracts,
-            'total'            => $total,
-            'page'             => $page,
-            'perPage'          => $perPage,
-            'lastPage'         => $lastPage,
-            'selectedDistrict' => $district,
-            'selectedStatus'   => $status === 'all' ? null : $status,
-            'selectedIssue'    => $issue === 'all' ? null : $issue,
-            'searchTerm'       => $searchTerm,
-        ]);
+        $grandPlan = (float) ($allData['grandPlan'] ?? 0);
+        $grandFact = (float) ($allData['grandFact'] ?? 0);
+        $overallPct = $grandPlan > 0 ? round($grandFact / $grandPlan * 100, 1) : 0;
 
-        return view('transactions.summary2', $viewData);
+        $summaryRowBalance = $grandPlan - $grandFact;
+        $summaryRowBarWidth = $grandPlan > 0 ? min((int) round($grandFact / $grandPlan * 100), 100) : 0;
+
+        $paginationQuery = [
+            'district' => $district,
+            'status'   => $status !== 'all' ? $status : null,
+            'issue'    => $issue !== 'all' ? $issue : null,
+            'search'   => $searchTerm,
+        ];
+
+        return view('transactions.summary2', [
+            'reportDate' => now()->format('d.m.Y'),
+            'contracts' => $this->mapSummaryContractsForView($contracts, $page, $perPage, $request->fullUrl()),
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'lastPage' => $lastPage,
+            'summaryStats' => [
+                'total_contracts' => $this->formatNumber($total),
+                'grand_plan_mln' => $this->formatNumber($grandPlan / 1000000, 1),
+                'grand_fact_mln' => $this->formatNumber($grandFact / 1000000, 1),
+                'overall_pct' => $this->formatNumber($overallPct, 1),
+                'overall_pct_class' => $overallPct >= 100 ? 'txt-good' : 'txt-warn',
+            ],
+            'summaryRow' => [
+                'plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
+                'fact_mln' => $this->formatNumber($grandFact / 1000000, 2),
+                'balance_mln' => $this->formatNumber($summaryRowBalance / 1000000, 2),
+                'balance_class' => $grandPlan > $grandFact ? 'txt-danger' : 'txt-good',
+                'progress_label' => $this->formatNumber($overallPct, 1) . '%',
+                'progress_width' => $summaryRowBarWidth,
+                'progress_class' => ($grandPlan > 0 && ($grandFact / $grandPlan) > 1) ? 'over' : '',
+            ],
+            'districtOptions' => $this->buildDistrictOptions($allData['availableDistricts'] ?? [], $district, 'Барча туман'),
+            'statusOptions' => $this->buildStatusOptions($status),
+            'issueOptions' => $this->buildIssueOptions($issue, 'Муаммо: барчаси'),
+            'searchTerm' => $searchTerm,
+            'selectedDistrict' => $district,
+            'selectedStatus' => $status,
+            'selectedIssue' => $issue,
+            'showResetFilters' => ($district !== null || $status !== 'all' || $issue !== 'all' || !empty($searchTerm)),
+            'pagination' => $this->buildPagination('summary2', $paginationQuery, $page, $lastPage),
+        ]);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -394,6 +429,7 @@ class TransactionController extends Controller
         $issue       = $this->normalizeRequestedIssue($issueInput);
         $district    = $request->filled('district') ? trim((string) $request->district) : null;
         $searchTerm  = $request->filled('search') ? trim((string) $request->search) : null;
+        $onlyDebtors = (int) $request->get('debtors', 0) === 1;
         $page        = max(1, (int) $request->get('page', 1));
         $perPage     = 25;
 
@@ -401,16 +437,18 @@ class TransactionController extends Controller
             $status . '|' .
             $issue . '|' .
             ($district ?? 'all') . '|' .
-            mb_strtolower($searchTerm ?? '')
+            mb_strtolower($searchTerm ?? '') . '|' .
+            ($onlyDebtors ? 'debtors' : 'all')
         );
 
-        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $district, $searchTerm) {
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $district, $searchTerm, $onlyDebtors) {
             $where = [];
             $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
             if ($statusWhere) $where[] = $statusWhere;
             $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
             if ($issueWhere) $where[] = $issueWhere;
             if ($district) $where[] = "c.district = " . DB::getPdo()->quote($district);
+            if ($onlyDebtors) $where[] = '(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))';
             if ($searchTerm) {
                 $q = DB::getPdo()->quote('%' . $searchTerm . '%');
                 $where[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
@@ -470,19 +508,116 @@ class TransactionController extends Controller
         $page         = min($page, $lastPage);
         $contracts    = array_slice($allContracts, ($page - 1) * $perPage, $perPage);
 
+        $grandPlan = (float) ($allData['grandPlan'] ?? 0);
+        $grandFact = (float) ($allData['grandFact'] ?? 0);
+        $grandDebt = max($grandPlan - $grandFact, 0);
+        $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : null;
+
+        $paginationQuery = [
+            'status' => $status,
+            'district' => $district,
+            'issue' => $issue !== 'all' ? $issue : null,
+            'debtors' => $onlyDebtors ? 1 : null,
+            'search' => $searchTerm,
+        ];
+
         return view('transactions.debts', [
-            'contracts'      => $contracts,
-            'total'          => $total,
-            'page'           => $page,
-            'perPage'        => $perPage,
-            'lastPage'       => $lastPage,
-            'grandPlan'      => $allData['grandPlan'],
-            'grandFact'      => $allData['grandFact'],
-            'availableDistricts' => $allData['availableDistricts'] ?? [],
+            'reportDate' => now()->format('d.m.Y'),
+            'contracts' => $this->mapDebtContractsForView($contracts, $page, $perPage, $request->fullUrl()),
+            'total' => $total,
+            'page' => $page,
+            'perPage' => $perPage,
+            'lastPage' => $lastPage,
+            'summaryStats' => [
+                'total_contracts' => $this->formatNumber($total),
+                'grand_plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
+                'grand_debt_mln' => $this->formatNumber($grandDebt / 1000000, 2),
+            ],
+            'summaryRow' => [
+                'plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
+                'fact_mln' => $this->formatNumber($grandFact / 1000000, 2),
+                'debt_mln' => $this->formatNumber($grandDebt / 1000000, 2),
+                'diff_mln' => $this->formatNumber(($grandPlan - $grandFact) / 1000000, 2),
+                'diff_class' => $this->completionBandClass($grandPct),
+            ],
+            'districtOptions' => $this->buildDistrictOptions($allData['availableDistricts'] ?? [], $district, 'Туман: барчаси'),
+            'statusOptions' => $this->buildStatusOptions($status),
+            'issueOptions' => $this->buildIssueOptions($issue, 'Муаммо ҳолати: барчаси'),
+            'debtorsOptions' => $this->buildDebtorOptions($onlyDebtors),
             'selectedStatus' => $status,
-            'selectedIssue'  => $issue,
+            'selectedIssue' => $issue,
             'selectedDistrict' => $district,
             'searchTerm' => $searchTerm,
+            'onlyDebtors' => $onlyDebtors,
+            'showResetFilters' => ($status !== 'in_progress' || $issue !== 'all' || $district !== null || !empty($searchTerm) || $onlyDebtors),
+            'pagination' => $this->buildPagination('debts', $paginationQuery, $page, $lastPage),
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // CONTRACT SHOW — Full details page
+    // ──────────────────────────────────────────────────────────────────────
+    public function contractShow(Request $request, $contractId)
+    {
+        $contractId = (int) $contractId;
+        $page       = max(1, (int) $request->get('page', 1));
+        $perPage    = 20;
+
+        $payload = $this->getContractDetailPayload($contractId, $page, $perPage);
+        if (!$payload) {
+            abort(404);
+        }
+
+        $contract = $payload['contract'];
+        $plan     = (float) ($contract->contract_value ?? 0);
+        $fact     = (float) ($contract->total_paid ?? 0);
+        $diff     = $plan - $fact;
+
+        $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
+        $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
+        $contract->issue_key    = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
+        $contract->issue_label  = $this->issueStatusLabel($contract->construction_issues ?? null);
+        $contract->debt         = max($diff, 0);
+        $contract->pct          = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
+
+        $backUrl = $request->filled('back') ? (string) $request->back : null;
+
+        $scheduleRows = [];
+        foreach ($payload['schedule'] as $index => $row) {
+            $scheduleRows[] = [
+                'row_num' => $index + 1,
+                'date' => $row['date'] ?? '—',
+                'amount' => $this->formatNumber((float) ($row['amount'] ?? 0), 4),
+            ];
+        }
+
+        $statusKey = (string) ($contract->status_key ?? 'in_progress');
+        $issueKey = (string) ($contract->issue_key ?? 'unknown');
+
+        return view('transactions.contract-show', [
+            'reportDate' => now()->format('d.m.Y'),
+            'contract' => [
+                'contract_id' => (int) ($contract->contract_id ?? 0),
+                'contract_number' => $contract->contract_number ?: (string) ($contract->contract_id ?? '—'),
+                'investor_name' => $contract->investor_name ?: '—',
+                'district' => $contract->district ?: '—',
+                'inn' => $contract->inn ?: '—',
+                'contract_date' => $this->formatDate($contract->contract_date ?? null),
+                'status_label' => $contract->status_label ?? 'Амалдаги',
+                'status_class' => $this->statusClass($statusKey, 'st-inprogress'),
+                'issue_label' => $contract->issue_label ?? '—',
+                'issue_class' => str_replace('issue-', 'is-', $this->issueClass($issueKey)),
+                'plan_mln' => $this->formatNumber($plan / 1000000, 2),
+                'fact_mln' => $this->formatNumber($fact / 1000000, 2),
+                'debt_mln' => $this->formatNumber(((float) ($contract->debt ?? 0)) / 1000000, 2),
+                'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),
+            ],
+            'scheduleRows' => $scheduleRows,
+            'payments' => $this->mapContractPaymentsForView($payload['payments'], (int) $payload['page'], (int) $payload['per_page']),
+            'total' => (int) ($payload['total'] ?? 0),
+            'lastPage' => (int) ($payload['last_page'] ?? 1),
+            'backUrl' => $backUrl ?: route('summary2'),
+            'pagination' => $this->buildContractPagination((int) ($contract->contract_id ?? 0), $backUrl, (int) $payload['page'], (int) $payload['last_page']),
         ]);
     }
 
@@ -539,6 +674,24 @@ class TransactionController extends Controller
     // ──────────────────────────────────────────────────────────────────────
     public function modalContract(Request $request, $contractId)
     {
+        $payload = $this->getContractDetailPayload((int) $contractId, max(1, (int) $request->get('page', 1)), 15);
+        if (!$payload) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+
+        return response()->json([
+            'contract' => $payload['contract'],
+            'schedule' => $payload['schedule'],
+            'payments' => $payload['payments'],
+            'total'    => (int) $payload['total'],
+            'page'     => $payload['page'],
+            'per_page' => $payload['per_page'],
+            'last_page'=> $payload['last_page'],
+        ]);
+    }
+
+    private function getContractDetailPayload(int $contractId, int $page = 1, int $perPage = 15): ?array
+    {
         $contract = DB::selectOne(
             "SELECT c.*,
                     COALESCE(agg.total_paid, 0)     as total_paid,
@@ -558,16 +711,15 @@ class TransactionController extends Controller
         );
 
         if (!$contract) {
-            return response()->json(['error' => 'Not found'], 404);
+            return null;
         }
 
-        $page    = max(1, (int) $request->get('page', 1));
-        $perPage = 15;
-        $offset  = ($page - 1) * $perPage;
+        $page   = max(1, $page);
+        $offset = ($page - 1) * $perPage;
 
-        $total = DB::selectOne(
+        $total = (int) (DB::selectOne(
             'SELECT COUNT(*) as cnt FROM apz_payments WHERE contract_id = ?', [$contractId]
-        )->cnt;
+        )->cnt ?? 0);
 
         $payments = DB::select(
             "SELECT id, payment_date, type, flow, amount, month, year, company_name, payment_purpose
@@ -577,7 +729,6 @@ class TransactionController extends Controller
             [$contractId]
         );
 
-        // Parse payment schedule
         $schedule = [];
         if ($contract->payment_schedule) {
             $sched = json_decode($contract->payment_schedule, true);
@@ -585,21 +736,280 @@ class TransactionController extends Controller
                 foreach ($sched as $date => $amt) {
                     try {
                         $dt = \Carbon\Carbon::parse($date);
-                        $schedule[] = ['date' => $dt->format('d.m.Y'), 'amount' => round($amt / 1000000, 4)];
+                        $schedule[] = [
+                            'date' => $dt->format('d.m.Y'),
+                            'amount' => round((float) $amt / 1000000, 4),
+                            'sort_key' => $dt->format('Y-m-d'),
+                        ];
                     } catch (\Exception $e) {}
                 }
             }
         }
 
-        return response()->json([
-            'contract' => $contract,
-            'schedule' => $schedule,
-            'payments' => $payments,
-            'total'    => (int) $total,
-            'page'     => $page,
-            'per_page' => $perPage,
-            'last_page'=> (int) ceil($total / $perPage),
-        ]);
+        usort($schedule, fn($a, $b) => strcmp($a['sort_key'], $b['sort_key']));
+        $schedule = array_map(function ($row) {
+            unset($row['sort_key']);
+            return $row;
+        }, $schedule);
+
+        return [
+            'contract'  => $contract,
+            'schedule'  => $schedule,
+            'payments'  => $payments,
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $perPage,
+            'last_page' => (int) ceil($total / $perPage),
+        ];
+    }
+
+    private function formatNumber($value, int $decimals = 0): string
+    {
+        return number_format((float) $value, $decimals, '.', ' ');
+    }
+
+    private function formatDate(?string $date): string
+    {
+        if (!$date) {
+            return '—';
+        }
+
+        try {
+            return \Carbon\Carbon::parse($date)->format('d.m.Y');
+        } catch (\Throwable $e) {
+            return '—';
+        }
+    }
+
+    private function statusClass(string $statusKey, string $inProgressClass = 'status-inprogress'): string
+    {
+        return match ($statusKey) {
+            'completed' => 'status-completed',
+            'cancelled' => 'status-cancelled',
+            default => $inProgressClass,
+        };
+    }
+
+    private function issueClass(string $issueKey): string
+    {
+        return match ($issueKey) {
+            'problem' => 'issue-problem',
+            'no_problem' => 'issue-ok',
+            default => 'issue-unknown',
+        };
+    }
+
+    private function completionBandClass(?float $pct): string
+    {
+        return match (true) {
+            $pct === null => 'diff-muted',
+            $pct < 10 => 'diff-red',
+            $pct < 35 => 'diff-orange',
+            $pct < 60 => 'diff-yellow',
+            default => 'diff-green',
+        };
+    }
+
+    private function buildStatusOptions(string $selected): array
+    {
+        $items = [
+            ['value' => 'all', 'label' => 'Барчаси'],
+            ['value' => 'in_progress', 'label' => 'Амалдаги'],
+            ['value' => 'completed', 'label' => 'Якунланган'],
+            ['value' => 'cancelled', 'label' => 'Бекор қилинган'],
+        ];
+
+        foreach ($items as &$item) {
+            $item['selected'] = $item['value'] === $selected;
+        }
+
+        return $items;
+    }
+
+    private function buildIssueOptions(string $selected, string $allLabel = 'Муаммо: барчаси'): array
+    {
+        $items = [
+            ['value' => 'all', 'label' => $allLabel],
+            ['value' => 'problem', 'label' => 'Муаммоли'],
+            ['value' => 'no_problem', 'label' => 'Муаммосиз'],
+            ['value' => 'unknown', 'label' => 'Кўрсатилмаган'],
+        ];
+
+        foreach ($items as &$item) {
+            $item['selected'] = $item['value'] === $selected;
+        }
+
+        return $items;
+    }
+
+    private function buildDebtorOptions(bool $onlyDebtors): array
+    {
+        return [
+            ['value' => '0', 'label' => 'Қарз: барчаси', 'selected' => !$onlyDebtors],
+            ['value' => '1', 'label' => 'Фақат қарздорлар', 'selected' => $onlyDebtors],
+        ];
+    }
+
+    private function buildDistrictOptions(array $districts, ?string $selected, string $allLabel = 'Туман: барчаси'): array
+    {
+        $items = [
+            ['value' => '', 'label' => $allLabel, 'selected' => empty($selected)],
+        ];
+
+        foreach ($districts as $district) {
+            $districtName = (string) $district;
+            $items[] = [
+                'value' => $districtName,
+                'label' => $districtName,
+                'selected' => $selected === $districtName,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function buildPagination(string $routeName, array $query, int $page, int $lastPage): array
+    {
+        $query = array_filter($query, static fn($value) => !($value === null || $value === ''));
+
+        $pages = [];
+        for ($p = max(1, $page - 2); $p <= min($lastPage, $page + 2); $p++) {
+            $pages[] = [
+                'number' => $p,
+                'url' => route($routeName, array_merge($query, ['page' => $p])),
+                'active' => $p === $page,
+            ];
+        }
+
+        return [
+            'first_url' => $page > 1 ? route($routeName, array_merge($query, ['page' => 1])) : null,
+            'prev_url' => $page > 1 ? route($routeName, array_merge($query, ['page' => $page - 1])) : null,
+            'next_url' => $page < $lastPage ? route($routeName, array_merge($query, ['page' => $page + 1])) : null,
+            'last_url' => $page < $lastPage ? route($routeName, array_merge($query, ['page' => $lastPage])) : null,
+            'pages' => $pages,
+        ];
+    }
+
+    private function buildContractPagination(int $contractId, ?string $backUrl, int $page, int $lastPage): array
+    {
+        $query = array_filter([
+            'back' => $backUrl,
+        ], static fn($value) => !($value === null || $value === ''));
+
+        $routeParams = fn (int $targetPage) => array_merge(['contractId' => $contractId, 'page' => $targetPage], $query);
+
+        $pages = [];
+        for ($p = max(1, $page - 2); $p <= min($lastPage, $page + 2); $p++) {
+            $pages[] = [
+                'number' => $p,
+                'url' => route('contracts.show', $routeParams($p)),
+                'active' => $p === $page,
+            ];
+        }
+
+        return [
+            'first_url' => $page > 1 ? route('contracts.show', $routeParams(1)) : null,
+            'prev_url' => $page > 1 ? route('contracts.show', $routeParams($page - 1)) : null,
+            'next_url' => $page < $lastPage ? route('contracts.show', $routeParams($page + 1)) : null,
+            'last_url' => $page < $lastPage ? route('contracts.show', $routeParams($lastPage)) : null,
+            'pages' => $pages,
+        ];
+    }
+
+    private function mapSummaryContractsForView(array $contracts, int $page, int $perPage, string $backUrl): array
+    {
+        $items = [];
+
+        foreach ($contracts as $index => $contract) {
+            $plan = (float) ($contract->contract_value ?? 0);
+            $fact = (float) ($contract->total_paid ?? 0);
+            $balance = $plan - $fact;
+            $pct = $plan > 0 ? round($fact / $plan * 100, 1) : 0;
+
+            $statusKey = (string) ($contract->status_key ?? 'in_progress');
+            $issueKey = (string) ($contract->issue_key ?? 'unknown');
+
+            $items[] = [
+                'row_num' => ($page - 1) * $perPage + $index + 1,
+                'investor_name' => Str::limit((string) ($contract->investor_name ?: '—'), 40),
+                'district' => $contract->district ?: '—',
+                'contract_number' => $contract->contract_number ?: '—',
+                'contract_date' => $this->formatDate($contract->contract_date ?? null),
+                'status_label' => $contract->status_label ?? 'Амалдаги',
+                'status_class' => $this->statusClass($statusKey, 'status-active'),
+                'issue_label' => $contract->issue_label ?? '—',
+                'issue_class' => $this->issueClass($issueKey),
+                'plan_mln' => $plan > 0 ? $this->formatNumber($plan / 1000000, 2) : '—',
+                'payment_terms' => $contract->payment_terms ?: '—',
+                'installments_count' => $contract->installments_count ?: '—',
+                'fact_mln' => $fact > 0 ? $this->formatNumber($fact / 1000000, 2) : '—',
+                'balance_mln' => $plan > 0 ? $this->formatNumber($balance / 1000000, 2) : '—',
+                'balance_class' => $balance <= 0 ? 'txt-good' : 'txt-danger',
+                'progress_show' => $plan > 0,
+                'progress_width' => min((int) round($pct), 100),
+                'progress_class' => $pct >= 100 ? 'over' : '',
+                'progress_label' => $this->formatNumber($pct, 1) . '%',
+                'detail_url' => route('contracts.show', ['contractId' => $contract->contract_id, 'back' => $backUrl]),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function mapDebtContractsForView(array $contracts, int $page, int $perPage, string $backUrl): array
+    {
+        $items = [];
+
+        foreach ($contracts as $index => $contract) {
+            $plan = (float) ($contract->contract_value ?? 0);
+            $fact = (float) ($contract->total_paid ?? 0);
+            $debt = (float) ($contract->debt ?? 0);
+            $diff = (float) ($contract->plan_fact_diff ?? 0);
+            $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : null;
+
+            $statusKey = (string) ($contract->status_key ?? 'in_progress');
+            $issueKey = (string) ($contract->issue_key ?? 'unknown');
+
+            $items[] = [
+                'row_num' => ($page - 1) * $perPage + $index + 1,
+                'investor_name' => $contract->investor_name ?: '—',
+                'district' => $contract->district ?: '—',
+                'contract_number' => $contract->contract_number ?: '—',
+                'contract_date' => $this->formatDate($contract->contract_date ?? null),
+                'status_label' => $contract->status_label ?? 'Амалдаги',
+                'status_class' => $this->statusClass($statusKey),
+                'issue_label' => $contract->issue_label ?? '—',
+                'issue_class' => $this->issueClass($issueKey),
+                'plan_mln' => $plan > 0 ? $this->formatNumber($plan / 1000000, 2) : '—',
+                'fact_mln' => $fact > 0 ? $this->formatNumber($fact / 1000000, 2) : '—',
+                'debt_mln' => $debt > 0 ? $this->formatNumber($debt / 1000000, 2) : '0.00',
+                'diff_mln' => $this->formatNumber($diff / 1000000, 2),
+                'diff_class' => $this->completionBandClass($pct),
+                'detail_url' => route('contracts.show', ['contractId' => $contract->contract_id, 'back' => $backUrl]),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function mapContractPaymentsForView(array $payments, int $page, int $perPage): array
+    {
+        $rows = [];
+
+        foreach ($payments as $index => $payment) {
+            $isIn = (($payment->flow ?? '') === 'Приход');
+            $rows[] = [
+                'row_num' => ($page - 1) * $perPage + $index + 1,
+                'payment_date' => $payment->payment_date ?: '—',
+                'type' => $payment->type ?: '—',
+                'flow' => $payment->flow ?: '—',
+                'flow_class' => $isIn ? 'flow-in' : 'flow-out',
+                'amount_signed_mln' => ($isIn ? '+' : '-') . $this->formatNumber(((float) ($payment->amount ?? 0)) / 1000000, 4),
+                'purpose' => $payment->payment_purpose ?: '—',
+            ];
+        }
+
+        return $rows;
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -616,6 +1026,7 @@ class TransactionController extends Controller
         $keys = [
             'apz_filters', 'apz_summary', 'apz_dashboard_data', 'apz_dashboard_data_v2',
             'apz_dashboard_data_v3_' . md5('all|all|all|'),
+            'apz_dashboard_data_v4_' . md5('all|all|all|'),
             'apz_summary_report_all',
             'apz_summary2_' . md5('all|all|all|'),
             'apz_summary2_' . md5('all|in_progress|all|'),
@@ -872,7 +1283,7 @@ class TransactionController extends Controller
         $topDebtWhereSql = $topDebtConditions ? 'WHERE ' . implode(' AND ', $topDebtConditions) : '';
 
         $monitoringTopDebts = DB::select("
-            SELECT c.investor_name, c.district, c.contract_number, c.contract_date, c.phone,
+            SELECT c.contract_id, c.investor_name, c.district, c.contract_number, c.contract_date, c.phone,
                    c.contract_status, c.construction_issues,
                    COALESCE(c.contract_value, 0) as contract_value,
                    COALESCE(paid.total_paid, 0) as total_paid,

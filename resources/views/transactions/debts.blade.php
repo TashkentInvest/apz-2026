@@ -25,6 +25,7 @@
     .contracts-table tbody td { padding:8px 8px; border:1px solid #e4e4e4; }
     .contracts-table tbody tr:nth-child(even) { background:#f8fafb; }
     .contracts-table tbody tr:hover { background:#e8f4f3; }
+    .contracts-table tbody tr.clickable { cursor:pointer; }
     .contracts-table tbody td.r { text-align:right; }
     .contracts-table tbody td.c { text-align:center; }
     .total-row td { background:#e8f4f3 !important; font-weight:700; border-top:2px solid #018c87; }
@@ -39,7 +40,7 @@
     .status-cancelled  { background:rgba(230,50,96,.1); color:#c02050; }
 
     .issue-problem    { background:rgba(230,50,96,.1); color:#c02050; }
-    .issue-noproblem  { background:rgba(6,184,56,.1);  color:#0a8a2e; }
+    .issue-ok         { background:rgba(6,184,56,.1);  color:#0a8a2e; }
     .issue-unknown    { background:#f1f3f5; color:#7f8a9b; }
 
     .diff-red    { color:#e63260; font-weight:600; }
@@ -47,6 +48,9 @@
     .diff-yellow { color:#9a6800; font-weight:600; }
     .diff-green  { color:#0a8a2e; font-weight:600; }
     .diff-muted  { color:#7f8a9b; font-weight:600; }
+    .txt-good { color:#0a8a2e; }
+    .txt-danger { color:#e63260; }
+    .link-clean { color:#018c87; text-decoration:none; }
 
     .pg-wrap { display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:16px; }
     .pg-btn {
@@ -71,26 +75,25 @@
 
     <div class="report-header">
         <h1>Шартномалар бўйича қарздорлик ҳисоботи</h1>
-        <div class="date">{{ now()->format('d.m.Y') }}</div>
+        <div class="date">{{ $reportDate }}</div>
     </div>
 
     <div class="row g-3 mb-4 no-print">
         <div class="col-md-4">
             <div class="grand-stat">
-                <div class="val">{{ number_format($total) }}</div>
+                <div class="val">{{ $summaryStats['total_contracts'] }}</div>
                 <div class="lbl">Жами шартномалар</div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="grand-stat">
-                <div class="val">{{ number_format($grandPlan / 1000000, 2, '.', ' ') }}</div>
+                <div class="val">{{ $summaryStats['grand_plan_mln'] }}</div>
                 <div class="lbl">Жами шартнома қиймати (млн.сўм)</div>
             </div>
         </div>
         <div class="col-md-4">
-            @php $grandDebt = max($grandPlan - $grandFact, 0); @endphp
             <div class="grand-stat">
-                <div class="val" style="color:#e63260;">{{ number_format($grandDebt / 1000000, 2, '.', ' ') }}</div>
+                <div class="val txt-danger">{{ $summaryStats['grand_debt_mln'] }}</div>
                 <div class="lbl">Жами қарздорлик (млн.сўм)</div>
             </div>
         </div>
@@ -98,26 +101,28 @@
 
     <form method="GET" action="{{ route('debts') }}" class="d-flex gap-2 mb-3 no-print" style="flex-wrap:wrap;">
         <select name="status" class="form-select form-select-sm" style="width:220px;" onchange="this.form.submit()">
-            <option value="all" {{ $selectedStatus === 'all' ? 'selected' : '' }}>Барчаси</option>
-            <option value="in_progress" {{ $selectedStatus === 'in_progress' ? 'selected' : '' }}>Амалдаги</option>
-            <option value="completed" {{ $selectedStatus === 'completed' ? 'selected' : '' }}>Якунланган</option>
-            <option value="cancelled" {{ $selectedStatus === 'cancelled' ? 'selected' : '' }}>Бекор қилинган</option>
+            @foreach($statusOptions as $option)
+                <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
+            @endforeach
         </select>
         <select name="district" class="form-select form-select-sm" style="width:190px;" onchange="this.form.submit()">
-            <option value="">Туман: барчаси</option>
-            @foreach(($availableDistricts ?? []) as $d)
-                <option value="{{ $d }}" {{ ($selectedDistrict ?? null) === $d ? 'selected' : '' }}>{{ $d }}</option>
+            @foreach($districtOptions as $option)
+                <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
             @endforeach
         </select>
         <select name="issue" class="form-select form-select-sm" style="width:220px;" onchange="this.form.submit()">
-            <option value="all" {{ ($selectedIssue ?? 'all') === 'all' ? 'selected' : '' }}>Муаммо ҳолати: барчаси</option>
-            <option value="problem" {{ ($selectedIssue ?? 'all') === 'problem' ? 'selected' : '' }}>Муаммоли</option>
-            <option value="no_problem" {{ ($selectedIssue ?? 'all') === 'no_problem' ? 'selected' : '' }}>Муаммосиз</option>
-            <option value="unknown" {{ ($selectedIssue ?? 'all') === 'unknown' ? 'selected' : '' }}>Кўрсатилмаган</option>
+            @foreach($issueOptions as $option)
+                <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
+            @endforeach
+        </select>
+        <select name="debtors" class="form-select form-select-sm" style="width:200px;" onchange="this.form.submit()">
+            @foreach($debtorsOptions as $option)
+                <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
+            @endforeach
         </select>
         <input type="text" name="search" value="{{ $searchTerm ?? '' }}" class="form-control form-control-sm" style="width:240px;" placeholder="Компания / шартнома / ИНН / ID">
         <button type="submit" class="platon-btn platon-btn-outline platon-btn-sm">Қидириш</button>
-        @if($selectedStatus !== 'in_progress' || ($selectedIssue ?? 'all') !== 'all' || ($selectedDistrict ?? null) || ($searchTerm ?? null))
+        @if($showResetFilters)
             <a href="{{ route('debts') }}" class="platon-btn platon-btn-outline platon-btn-sm">Тозалаш</a>
         @endif
         <button onclick="window.print()" type="button" class="platon-btn platon-btn-primary platon-btn-sm" style="margin-left:auto;">Чоп</button>
@@ -144,66 +149,25 @@
                 <tr class="total-row">
                     <td class="c">—</td>
                     <td colspan="6">ЖАМИ ({{ $total }} шартнома)</td>
-                    <td class="r">{{ number_format($grandPlan / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#0a8a2e;">{{ number_format($grandFact / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#e63260;">{{ number_format(max($grandPlan - $grandFact, 0) / 1000000, 2, '.', ' ') }}</td>
-                    @php
-                        $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : null;
-                        $grandDiffClass = match (true) {
-                            $grandPct === null => 'diff-muted',
-                            $grandPct < 10 => 'diff-red',
-                            $grandPct < 35 => 'diff-orange',
-                            $grandPct < 60 => 'diff-yellow',
-                            default => 'diff-green',
-                        };
-                    @endphp
-                    <td class="r {{ $grandDiffClass }}">
-                        {{ number_format(($grandPlan - $grandFact) / 1000000, 2, '.', ' ') }}
-                    </td>
+                    <td class="r">{{ $summaryRow['plan_mln'] }}</td>
+                    <td class="r txt-good">{{ $summaryRow['fact_mln'] }}</td>
+                    <td class="r txt-danger">{{ $summaryRow['debt_mln'] }}</td>
+                    <td class="r {{ $summaryRow['diff_class'] }}">{{ $summaryRow['diff_mln'] }}</td>
                 </tr>
 
-                @foreach($contracts as $i => $c)
-                @php
-                    $plan = (float) ($c->contract_value ?? 0);
-                    $fact = (float) ($c->total_paid ?? 0);
-                    $debt = (float) ($c->debt ?? 0);
-                    $diff = (float) ($c->plan_fact_diff ?? 0);
-                    $pct  = $plan > 0 ? round(($fact / $plan) * 100, 1) : null;
-                    $rowNum = ($page - 1) * $perPage + $i + 1;
-
-                    $statusClass = match($c->status_key ?? 'in_progress') {
-                        'completed' => 'status-completed',
-                        'cancelled' => 'status-cancelled',
-                        default     => 'status-inprogress',
-                    };
-                    $issueClass = match($c->issue_key ?? 'unknown') {
-                        'problem'    => 'issue-problem',
-                        'no_problem' => 'issue-noproblem',
-                        default      => 'issue-unknown',
-                    };
-
-                    $diffClass = match (true) {
-                        $pct === null => 'diff-muted',
-                        $pct < 10 => 'diff-red',
-                        $pct < 35 => 'diff-orange',
-                        $pct < 60 => 'diff-yellow',
-                        default => 'diff-green',
-                    };
-                @endphp
-                <tr>
-                    <td class="c">{{ $rowNum }}</td>
-                    <td>{{ $c->investor_name ?: '—' }}</td>
-                    <td class="c">{{ $c->district ?: '—' }}</td>
-                    <td class="c">{{ $c->contract_number ?: '—' }}</td>
-                    <td class="c">{{ $c->contract_date ? \Carbon\Carbon::parse($c->contract_date)->format('d.m.Y') : '—' }}</td>
-                    <td class="c"><span class="status-badge {{ $statusClass }}">{{ $c->status_label }}</span></td>
-                    <td class="c"><span class="issue-badge {{ $issueClass }}">{{ $c->issue_label }}</span></td>
-                    <td class="r">{{ $plan > 0 ? number_format($plan / 1000000, 2, '.', ' ') : '—' }}</td>
-                    <td class="r" style="color:#0a8a2e;">{{ $fact > 0 ? number_format($fact / 1000000, 2, '.', ' ') : '—' }}</td>
-                    <td class="r" style="color:#e63260;font-weight:600;">{{ $debt > 0 ? number_format($debt / 1000000, 2, '.', ' ') : '0.00' }}</td>
-                    <td class="r {{ $diffClass }}">
-                        {{ number_format($diff / 1000000, 2, '.', ' ') }}
-                    </td>
+                @foreach($contracts as $contract)
+                <tr class="clickable" onclick="window.location='{{ $contract['detail_url'] }}'">
+                    <td class="c">{{ $contract['row_num'] }}</td>
+                    <td>{{ $contract['investor_name'] }}</td>
+                    <td class="c">{{ $contract['district'] }}</td>
+                    <td class="c"><a href="{{ $contract['detail_url'] }}" class="link-clean" onclick="event.stopPropagation()">{{ $contract['contract_number'] }}</a></td>
+                    <td class="c">{{ $contract['contract_date'] }}</td>
+                    <td class="c"><span class="status-badge {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></td>
+                    <td class="c"><span class="issue-badge {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></td>
+                    <td class="r">{{ $contract['plan_mln'] }}</td>
+                    <td class="r txt-good">{{ $contract['fact_mln'] }}</td>
+                    <td class="r txt-danger" style="font-weight:600;">{{ $contract['debt_mln'] }}</td>
+                    <td class="r {{ $contract['diff_class'] }}">{{ $contract['diff_mln'] }}</td>
                 </tr>
                 @endforeach
             </tbody>
@@ -212,30 +176,21 @@
 
     @if($lastPage > 1)
     <div class="pg-wrap no-print">
-        @php
-            $qs = [
-                'status' => $selectedStatus,
-                'district' => ($selectedDistrict ?? null),
-                'issue' => ($selectedIssue ?? 'all'),
-                'search' => ($searchTerm ?? null),
-            ];
-        @endphp
-
-        @if($page > 1)
-            <a href="{{ route('debts', array_merge($qs,['page'=>1])) }}" class="pg-btn">&laquo;</a>
-            <a href="{{ route('debts', array_merge($qs,['page'=>$page-1])) }}" class="pg-btn">&lsaquo; Олдинги</a>
+        @if($pagination['first_url'] && $pagination['prev_url'])
+            <a href="{{ $pagination['first_url'] }}" class="pg-btn">&laquo;</a>
+            <a href="{{ $pagination['prev_url'] }}" class="pg-btn">&lsaquo; Олдинги</a>
         @else
             <span class="pg-btn disabled">&laquo;</span>
             <span class="pg-btn disabled">&lsaquo; Олдинги</span>
         @endif
 
-        @for($p = max(1,$page-2); $p <= min($lastPage,$page+2); $p++)
-            <a href="{{ route('debts', array_merge($qs,['page'=>$p])) }}" class="pg-btn {{ $p==$page ? 'active' : '' }}">{{ $p }}</a>
-        @endfor
+        @foreach($pagination['pages'] as $p)
+            <a href="{{ $p['url'] }}" class="pg-btn {{ $p['active'] ? 'active' : '' }}">{{ $p['number'] }}</a>
+        @endforeach
 
-        @if($page < $lastPage)
-            <a href="{{ route('debts', array_merge($qs,['page'=>$page+1])) }}" class="pg-btn">Кейинги &rsaquo;</a>
-            <a href="{{ route('debts', array_merge($qs,['page'=>$lastPage])) }}" class="pg-btn">&raquo;</a>
+        @if($pagination['next_url'] && $pagination['last_url'])
+            <a href="{{ $pagination['next_url'] }}" class="pg-btn">Кейинги &rsaquo;</a>
+            <a href="{{ $pagination['last_url'] }}" class="pg-btn">&raquo;</a>
         @else
             <span class="pg-btn disabled">Кейинги &rsaquo;</span>
             <span class="pg-btn disabled">&raquo;</span>

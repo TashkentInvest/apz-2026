@@ -14,7 +14,7 @@
         margin-bottom: 20px;
     }
     .tbl-block-header {
-        padding: 14px 20px;
+        padding: 11px 16px;
         border-bottom: 1px solid #e8e8e8;
         font-size: 0.95rem;
         font-weight: 600;
@@ -43,6 +43,16 @@
         border: 1px solid #e8e8e8;
         position: relative;
         overflow: hidden;
+    }
+    .stat-card-link {
+        display:block;
+        text-decoration:none;
+        color:inherit;
+    }
+    .stat-card-link:hover { color:inherit; }
+    .stat-card-link:hover .stat-card {
+        transform:translateY(-1px);
+        box-shadow:0 6px 14px rgba(0,0,0,.08);
     }
     .stat-card::after {
         content: '';
@@ -311,27 +321,28 @@
 
     .mon-table-wrap { overflow-x:auto; }
     .mon-table {
-        width:100%; border-collapse:collapse; font-size:.79rem;
+        width:100%; border-collapse:collapse; font-size:.74rem;
+        line-height:1.2;
     }
     .mon-table thead th {
         background:#015c58; color:#fff; border:1px solid #014a47;
-        padding:8px 8px; text-align:center; white-space:nowrap;
-        font-size:.72rem; font-weight:700;
+        padding:6px 6px; text-align:center; white-space:nowrap;
+        font-size:.68rem; font-weight:700;
     }
     .mon-table tbody td {
-        border:1px solid #e7ecec; padding:7px 8px; vertical-align:middle;
+        border:1px solid #e7ecec; padding:5px 6px; vertical-align:middle;
     }
     .mon-table tbody tr:nth-child(even) td { background:#f9fcfc; }
     .mon-table tbody tr:hover td { background:#eaf7f6; }
     .mon-table td.r { text-align:right; }
     .mon-table td.c { text-align:center; }
     .mon-title {
-        font-size:.84rem; font-weight:700; color:#015c58;
-        margin:14px 0 8px;
+        font-size:.8rem; font-weight:700; color:#015c58;
+        margin:6px 0 6px;
     }
     .issue-pill {
-        display:inline-block; padding:2px 7px; border-radius:10px;
-        font-size:.67rem; font-weight:700;
+        display:inline-block; padding:1px 6px; border-radius:10px;
+        font-size:.62rem; font-weight:700;
     }
     .issue-pill.problem { background:rgba(230,50,96,.12); color:#c02050; }
     .issue-pill.ok { background:rgba(6,184,56,.12); color:#0a8a2e; }
@@ -343,13 +354,27 @@
         background:#fff;
         border:1px solid #e8e8e8;
         border-radius:10px;
-        padding:10px 12px;
-        height:100%;
+        padding:8px 9px;
     }
-    .mon-card .mon-title { margin:0 0 8px; }
-    .mon-card .mon-table thead th { padding:6px 7px; font-size:.7rem; }
-    .mon-card .mon-table tbody td { padding:6px 7px; font-size:.76rem; }
-    .mon-block-grid { padding:12px 16px; }
+    .mon-card .mon-title { margin:0 0 6px; }
+    .mon-card .mon-table thead th { padding:5px 6px; font-size:.66rem; }
+    .mon-card .mon-table tbody td { padding:4px 6px; font-size:.71rem; }
+    .mon-block-grid { padding:8px 10px; align-items:flex-start; }
+    .compact-ellipsis {
+        max-width:240px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+    }
+    .mon-table-wrap.compact-scroll {
+        max-height:380px;
+        overflow:auto;
+    }
+    .mon-table-wrap.compact-scroll .mon-table thead th {
+        position:sticky;
+        top:0;
+        z-index:2;
+    }
     @media (max-width: 1100px) {
         .mon-grid-2 { grid-template-columns:1fr; }
     }
@@ -394,36 +419,48 @@
 
 {{-- ── Top stat cards ── --}}
 <div class="stats-row">
-    <div class="stat-card teal">
-        <div class="sc-label">Жами Приход (АПЗ)</div>
-        <div class="sc-value">{{ number_format($totalIncome / 1000000, 1, '.', ' ') }} млн</div>
-        <div class="sc-sub">сўм &middot; {{ number_format($totalRecords) }} та йозув</div>
-    </div>
-    <div class="stat-card blue">
-        <div class="sc-label">Жами Шартномалар</div>
-        <div class="sc-value">{{ number_format($totalContracts) }}</div>
-        <div class="sc-sub">Фаол: {{ $activeC }} &middot; Якун: {{ $completedC }} &middot; Бекор: {{ $cancelledC }}</div>
-    </div>
-    <div class="stat-card green">
-        <div class="sc-label">Шартнома умумий қиймати</div>
-        <div class="sc-value">{{ number_format($totalPlanValue / 1000000, 1, '.', ' ') }} млн</div>
-        <div class="sc-sub">сўм (режа-жадвал)</div>
-    </div>
-    <div class="stat-card orange">
-        <div class="sc-label">Туманлар сони</div>
-        <div class="sc-value">{{ $uDistricts }}</div>
-        <div class="sc-sub">Уникал шартномалар: {{ $uContracts }}</div>
-    </div>
-    <div class="stat-card red">
-        <div class="sc-label">Қарздор шартномалар</div>
-        <div class="sc-value">{{ number_format($debtorsCount) }}</div>
-        <div class="sc-sub">{{ number_format($debtorsTotal / 1000000, 1, '.', ' ') }} млн.сўм қарз</div>
-    </div>
-    <div class="stat-card {{ $totalIncome >= $totalPlanValue ? 'teal' : 'red' }}">
-        <div class="sc-label">Умумий бажарилиш</div>
-        <div class="sc-value">{{ $totalPlanValue > 0 ? number_format($totalIncome / $totalPlanValue * 100, 1) : 0 }}%</div>
-        <div class="sc-sub">факт / режа</div>
-    </div>
+    <a href="{{ route('home') }}" class="stat-card-link">
+        <div class="stat-card teal">
+            <div class="sc-label">Жами Приход (АПЗ)</div>
+            <div class="sc-value">{{ number_format($totalIncome / 1000000, 1, '.', ' ') }} млн</div>
+            <div class="sc-sub">сўм &middot; {{ number_format($totalRecords) }} та йозув</div>
+        </div>
+    </a>
+    <a href="{{ route('summary2') }}" class="stat-card-link">
+        <div class="stat-card blue">
+            <div class="sc-label">Жами Шартномалар</div>
+            <div class="sc-value">{{ number_format($totalContracts) }}</div>
+            <div class="sc-sub">Фаол: {{ $activeC }} &middot; Якун: {{ $completedC }} &middot; Бекор: {{ $cancelledC }}</div>
+        </div>
+    </a>
+    <a href="{{ route('summary2') }}" class="stat-card-link">
+        <div class="stat-card green">
+            <div class="sc-label">Шартнома умумий қиймати</div>
+            <div class="sc-value">{{ number_format($totalPlanValue / 1000000, 1, '.', ' ') }} млн</div>
+            <div class="sc-sub">сўм (режа-жадвал)</div>
+        </div>
+    </a>
+    <a href="{{ route('summary2') }}" class="stat-card-link">
+        <div class="stat-card orange">
+            <div class="sc-label">Туманлар сони</div>
+            <div class="sc-value">{{ $uDistricts }}</div>
+            <div class="sc-sub">Уникал шартномалар: {{ $uContracts }}</div>
+        </div>
+    </a>
+    <a href="{{ route('debts', ['status' => 'in_progress', 'debtors' => 1]) }}" class="stat-card-link">
+        <div class="stat-card red">
+            <div class="sc-label">Қарздор шартномалар</div>
+            <div class="sc-value">{{ number_format($debtorsCount) }}</div>
+            <div class="sc-sub">{{ number_format($debtorsTotal / 1000000, 1, '.', ' ') }} млн.сўм қарз</div>
+        </div>
+    </a>
+    <a href="{{ route('summary2') }}" class="stat-card-link">
+        <div class="stat-card {{ $totalIncome >= $totalPlanValue ? 'teal' : 'red' }}">
+            <div class="sc-label">Умумий бажарилиш</div>
+            <div class="sc-value">{{ $totalPlanValue > 0 ? number_format($totalIncome / $totalPlanValue * 100, 1) : 0 }}%</div>
+            <div class="sc-sub">факт / режа</div>
+        </div>
+    </a>
 </div>
 
 <div class="tbl-block">
@@ -432,7 +469,7 @@
         <span class="sub">{{ now()->format('d.m.Y') }} кунлик кесим</span>
     </div>
 
-    <div class="no-print" style="padding:12px 16px; border-bottom:1px solid #e8e8e8;">
+    <div class="no-print" style="padding:10px 12px; border-bottom:1px solid #e8e8e8;">
         <form method="GET" action="{{ route('dashboard') }}" class="d-flex gap-2" style="flex-wrap:wrap;">
             <select name="district" class="form-select form-select-sm" style="width:190px;" onchange="this.form.submit()">
                 <option value="">Туман: барчаси</option>
@@ -460,211 +497,231 @@
         </form>
     </div>
 
-    <div class="mon-title">АПЗ шартномалари бўйича кунлик ахборот маълумотлари</div>
-    <div class="mon-table-wrap">
-        <table class="mon-table">
-            <thead>
-                <tr>
-                    <th style="width:4%">№</th>
-                    <th style="text-align:left">Номи</th>
-                    <th>Шартномалар сони</th>
-                    <th>Шартномалар қиймати</th>
-                    <th>Жами тушум</th>
-                    <th>Жами қарздорлик</th>
-                    <th>Бажарилиш %</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($monitoringSummaryRows as $i => $row)
-                <tr>
-                    <td class="c">{{ $i + 1 }}</td>
-                    <td>{{ $row['label'] }}</td>
-                    <td class="c">{{ number_format($row['contracts_count']) }}</td>
-                    <td class="r">{{ number_format($row['contract_value'] / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#0a8a2e;">{{ number_format($row['total_paid'] / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#e63260;">{{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r">{{ number_format($row['pct'], 1) }}%</td>
-                </tr>
-                @endforeach
-                @if(empty($monitoringSummaryRows))
-                <tr><td colspan="7" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                @endif
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mon-title">Амалдаги шартномалар — туман кесими</div>
-    <div class="mon-table-wrap">
-        <table class="mon-table">
-            <thead>
-                <tr>
-                    <th style="width:4%">№</th>
-                    <th style="text-align:left">Туман</th>
-                    <th>Шартномалар сони</th>
-                    <th>Шартнома қиймати</th>
-                    <th>Жами тушум</th>
-                    <th>Қарздорлик</th>
-                    <th>Муаммоли</th>
-                    <th>Муаммосиз</th>
-                    <th>Бажарилиш %</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($monitoringDistrictRows as $i => $row)
-                <tr>
-                    <td class="c">{{ $i + 1 }}</td>
-                    <td>{{ $row->district }}</td>
-                    <td class="c">{{ number_format($row->contracts_count) }}</td>
-                    <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_paid / 1000000, 2, '.', ' ') }}</td>
-                    <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
-                    <td class="c">{{ number_format($row->problem_count) }}</td>
-                    <td class="c">{{ number_format($row->no_problem_count) }}</td>
-                    <td class="r">{{ number_format($row->pct ?? 0, 1) }}%</td>
-                </tr>
-                @endforeach
-                @if(empty($monitoringDistrictRows))
-                <tr><td colspan="9" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                @endif
-            </tbody>
-        </table>
-    </div>
-
-    <div class="mon-grid-2">
-        <div>
-            <div class="mon-title">Амалдаги шартномалар топ қарздорлик рўйхати</div>
-            <div class="mon-table-wrap">
-                <table class="mon-table">
-                    <thead>
-                        <tr>
-                            <th style="width:4%">№</th>
-                            <th style="text-align:left">Компания</th>
-                            <th>Туман</th>
-                            <th>Шартнома</th>
-                            <th>Қарздорлик</th>
-                            <th>Муаммо</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($monitoringTopDebts as $i => $row)
-                        <tr>
-                            <td class="c">{{ $i + 1 }}</td>
-                            <td>{{ $row->investor_name ?: '—' }}</td>
-                            <td class="c">{{ $row->district ?: '—' }}</td>
-                            <td class="c">{{ $row->contract_number ?: '—' }}</td>
-                            <td class="r" style="color:#e63260;font-weight:700;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
-                            <td class="c">
-                                @php
-                                    $issueClass = 'unknown';
-                                    if (($row->issue_label ?? '—') === 'Муаммоли') $issueClass = 'problem';
-                                    if (($row->issue_label ?? '—') === 'Муаммосиз') $issueClass = 'ok';
-                                @endphp
-                                <span class="issue-pill {{ $issueClass }}">{{ $row->issue_label ?? '—' }}</span>
-                            </td>
-                        </tr>
-                        @endforeach
-                        @if(empty($monitoringTopDebts))
-                        <tr><td colspan="6" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                        @endif
-                    </tbody>
-                </table>
+    <div class="row g-2 mon-block-grid">
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">АПЗ шартномалари бўйича кунлик ахборот маълумотлари</div>
+                <div class="mon-table-wrap compact-scroll">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="width:4%">№</th>
+                                <th style="text-align:left">Номи</th>
+                                <th>Шартномалар сони</th>
+                                <th>Шартномалар қиймати</th>
+                                <th>Жами тушум</th>
+                                <th>Жами қарздорлик</th>
+                                <th>Бажарилиш %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringSummaryRows as $i => $row)
+                            <tr>
+                                <td class="c">{{ $i + 1 }}</td>
+                                <td>{{ $row['label'] }}</td>
+                                <td class="c">{{ number_format($row['contracts_count']) }}</td>
+                                <td class="r">{{ number_format($row['contract_value'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['total_paid'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;">{{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['pct'], 1) }}%</td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringSummaryRows))
+                            <tr><td colspan="7" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div>
-            <div class="mon-title">Янги шартномалар (жорий ой)</div>
-            <div class="mon-table-wrap">
-                <table class="mon-table">
-                    <thead>
-                        <tr>
-                            <th style="width:10%">Сана</th>
-                            <th>Шартнома сони</th>
-                            <th>Шартнома қиймати</th>
-                            <th>Шартнома қарзи</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($monitoringNewContracts as $row)
-                        <tr>
-                            <td class="c">{{ \Carbon\Carbon::parse($row->contract_day)->format('d.m.y') }}</td>
-                            <td class="c">{{ number_format($row->contracts_count) }}</td>
-                            <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
-                        </tr>
-                        @endforeach
-                        @if(empty($monitoringNewContracts))
-                        <tr><td colspan="4" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                        @endif
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-    <div class="mon-grid-2" style="margin-top:8px;">
-        <div>
-            <div class="mon-title">Инфратузилма тўловлар бўйича маълумот</div>
-            <div class="mon-table-wrap">
-                <table class="mon-table">
-                    <thead>
-                        <tr>
-                            <th style="text-align:left">Ой</th>
-                            <th>План</th>
-                            <th>Факт</th>
-                            <th>АПЗ тўлов</th>
-                            <th>Пеня</th>
-                            <th>Қайтариш</th>
-                            <th>План-Факт</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($monitoringMonthlyRows as $row)
-                        <tr>
-                            <td>{{ $row['month_label'] }}</td>
-                            <td class="r">{{ number_format($row['plan_total'] / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r" style="color:#0a8a2e;">{{ number_format($row['fact_total'] / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row['apz_payment'] / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row['penalty_payment'] / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row['apz_refund'] / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r" style="color:{{ $row['plan_fact_diff'] <= 0 ? '#0a8a2e' : '#e63260' }};">{{ number_format($row['plan_fact_diff'] / 1000000, 2, '.', ' ') }}</td>
-                        </tr>
-                        @endforeach
-                        @if(empty($monitoringMonthlyRows))
-                        <tr><td colspan="7" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                        @endif
-                    </tbody>
-                </table>
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">Амалдаги шартномалар — туман кесими</div>
+                <div class="mon-table-wrap compact-scroll">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="width:4%">№</th>
+                                <th style="text-align:left">Туман</th>
+                                <th>Шартномалар сони</th>
+                                <th>Шартнома қиймати</th>
+                                <th>Жами тушум</th>
+                                <th>Қарздорлик</th>
+                                <th>Муаммоли</th>
+                                <th>Муаммосиз</th>
+                                <th>Бажарилиш %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringDistrictRows as $i => $row)
+                            <tr>
+                                <td class="c">{{ $i + 1 }}</td>
+                                <td>{{ $row->district }}</td>
+                                <td class="c">{{ number_format($row->contracts_count) }}</td>
+                                <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_paid / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
+                                <td class="c">{{ number_format($row->problem_count) }}</td>
+                                <td class="c">{{ number_format($row->no_problem_count) }}</td>
+                                <td class="r">{{ number_format($row->pct ?? 0, 1) }}%</td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringDistrictRows))
+                            <tr><td colspan="9" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div>
-            <div class="mon-title">АПЗ тўловлар (жорий ой, кун кесими)</div>
-            <div class="mon-table-wrap">
-                <table class="mon-table">
-                    <thead>
-                        <tr>
-                            <th style="width:12%">Кун</th>
-                            <th>Жами</th>
-                            <th>АПЗ тўлови</th>
-                            <th>Қайтариш</th>
-                            <th>Пеня</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($monitoringDailyRows as $row)
-                        <tr>
-                            <td class="c">{{ \Carbon\Carbon::parse($row->pay_day)->format('d.m.y') }}</td>
-                            <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_income / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row->apz_payment / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row->apz_refund / 1000000, 2, '.', ' ') }}</td>
-                            <td class="r">{{ number_format($row->penalty_payment / 1000000, 2, '.', ' ') }}</td>
-                        </tr>
-                        @endforeach
-                        @if(empty($monitoringDailyRows))
-                        <tr><td colspan="5" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
-                        @endif
-                    </tbody>
-                </table>
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">Амалдаги шартномалар топ қарздорлик рўйхати</div>
+                <div class="mon-table-wrap compact-scroll">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="width:4%">№</th>
+                                <th style="text-align:left">Компания</th>
+                                <th>Туман</th>
+                                <th>Шартнома</th>
+                                <th>Қарздорлик</th>
+                                <th>Муаммо</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringTopDebts as $i => $row)
+                            <tr>
+                                <td class="c">{{ $i + 1 }}</td>
+                                <td class="compact-ellipsis" title="{{ $row->investor_name ?: '—' }}">{{ $row->investor_name ?: '—' }}</td>
+                                <td class="c">{{ $row->district ?: '—' }}</td>
+                                <td class="c">
+                                    @if(!empty($row->contract_number) && !empty($row->contract_id))
+                                        <a href="{{ route('contracts.show', ['contractId' => $row->contract_id, 'back' => request()->fullUrl()]) }}" style="color:#018c87;text-decoration:none;">{{ $row->contract_number }}</a>
+                                    @else
+                                        {{ $row->contract_number ?: '—' }}
+                                    @endif
+                                </td>
+                                <td class="r" style="color:#e63260;font-weight:700;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
+                                <td class="c">
+                                    @php
+                                        $issueClass = 'unknown';
+                                        if (($row->issue_label ?? '—') === 'Муаммоли') $issueClass = 'problem';
+                                        if (($row->issue_label ?? '—') === 'Муаммосиз') $issueClass = 'ok';
+                                    @endphp
+                                    <span class="issue-pill {{ $issueClass }}">{{ $row->issue_label ?? '—' }}</span>
+                                </td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringTopDebts))
+                            <tr><td colspan="6" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">Янги шартномалар (жорий ой)</div>
+                <div class="mon-table-wrap">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="width:10%">Сана</th>
+                                <th>Шартнома сони</th>
+                                <th>Шартнома қиймати</th>
+                                <th>Шартнома қарзи</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringNewContracts as $row)
+                            <tr>
+                                <td class="c">{{ \Carbon\Carbon::parse($row->contract_day)->format('d.m.y') }}</td>
+                                <td class="c">{{ number_format($row->contracts_count) }}</td>
+                                <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringNewContracts))
+                            <tr><td colspan="4" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">Инфратузилма тўловлар бўйича маълумот</div>
+                <div class="mon-table-wrap compact-scroll">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="text-align:left">Ой</th>
+                                <th>План</th>
+                                <th>Факт</th>
+                                <th>АПЗ тўлов</th>
+                                <th>Пеня</th>
+                                <th>Қайтариш</th>
+                                <th>План-Факт</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringMonthlyRows as $row)
+                            <tr>
+                                <td>{{ $row['month_label'] }}</td>
+                                <td class="r">{{ number_format($row['plan_total'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['fact_total'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['apz_payment'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['penalty_payment'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['apz_refund'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:{{ $row['plan_fact_diff'] <= 0 ? '#0a8a2e' : '#e63260' }};">{{ number_format($row['plan_fact_diff'] / 1000000, 2, '.', ' ') }}</td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringMonthlyRows))
+                            <tr><td colspan="7" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="mon-card">
+                <div class="mon-title">АПЗ тўловлар (жорий ой, кун кесими)</div>
+                <div class="mon-table-wrap">
+                    <table class="mon-table">
+                        <thead>
+                            <tr>
+                                <th style="width:12%">Кун</th>
+                                <th>Жами</th>
+                                <th>АПЗ тўлови</th>
+                                <th>Қайтариш</th>
+                                <th>Пеня</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($monitoringDailyRows as $row)
+                            <tr>
+                                <td class="c">{{ \Carbon\Carbon::parse($row->pay_day)->format('d.m.y') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_income / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->apz_payment / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->apz_refund / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->penalty_payment / 1000000, 2, '.', ' ') }}</td>
+                            </tr>
+                            @endforeach
+                            @if(empty($monitoringDailyRows))
+                            <tr><td colspan="5" class="c" style="color:#8892a5;">Маълумот топилмади</td></tr>
+                            @endif
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

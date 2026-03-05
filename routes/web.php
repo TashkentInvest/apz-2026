@@ -52,6 +52,9 @@ Route::middleware('auth')->group(function () {
         // Debts report
         Route::get('/debts', [TransactionController::class, 'debts'])->name('debts');
 
+        // Contract detail page
+        Route::get('/contracts/{contractId}', [TransactionController::class, 'contractShow'])->name('contracts.show');
+
         // Modal AJAX endpoints
         Route::get('/modal/payments',           [TransactionController::class, 'modalPayments'])->name('modal.payments');
         Route::get('/modal/contract/{contractId}', [TransactionController::class, 'modalContract'])->name('modal.contract');
