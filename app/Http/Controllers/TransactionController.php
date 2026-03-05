@@ -193,17 +193,17 @@ class TransactionController extends Controller
 
             // ── Reuse summary() drill-down data (all years) ────────────────
             // Call summary logic with year=null to get full drill-down dataset
-            return $this->buildSummaryDrillDown(null); // null = all years
+            $drillDown = $this->buildSummaryDrillDown(null); // null = all years
 
             // ── 8. Available years ────────────────────────────────────────
             $availableYears = DB::table('apz_payments')
                 ->selectRaw('DISTINCT year')->whereNotNull('year')->where('year', '>', 0)
                 ->orderBy('year', 'desc')->pluck('year')->toArray();
 
-            return compact(
+            return array_merge($drillDown, compact(
                 'global', 'contractStats',
                 'monthlyStats', 'districtStats', 'typeStats', 'planFact'
-            );
+            ));
         });
 
         // Merge drill-down data from summary cache

@@ -92,5 +92,5 @@ php -d memory_limit=512M artisan db:seed --class=TransactionsSeeder
 
 ```
 php artisan migrate
-php artisan make:admin --name="Administrator" --email="admin@toshkentinvest.uz" --password="YourStrongPassword"
+php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
 ```

@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'АПЗ Дашбоард')
-
 @section('content')
 @php
     use App\Models\ApzPayment;

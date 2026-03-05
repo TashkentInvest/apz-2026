@@ -303,9 +303,9 @@
     $activeC        = $contractStats->active ?? 0;
     $totalPlanValue = $contractStats->total_value ?? 0;
 
-    $maxDistrict = count($districtStats) ? max(array_column((array) $districtStats, 'income')) : 1;
+    $maxDistrict = (is_array($districtStats) && count($districtStats)) ? max(array_column($districtStats, 'income')) : 1;
     $maxDistrict = $maxDistrict ?: 1;
-    $maxType     = count($typeStats) ? max(array_column((array) $typeStats, 'income')) : 1;
+    $maxType     = (is_array($typeStats) && count($typeStats)) ? max(array_column($typeStats, 'income')) : 1;
     $maxType     = $maxType ?: 1;
 @endphp
 
