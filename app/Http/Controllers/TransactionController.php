@@ -113,7 +113,19 @@ class TransactionController extends Controller
     // ──────────────────────────────────────────────────────────────────────
     public function dashboard(Request $request)
     {
-        $viewData = Cache::remember('apz_dashboard_data', self::CACHE_REPORT, function () {
+        $monitorDistrict = $request->filled('district') ? trim((string) $request->district) : null;
+        $monitorStatus   = $this->normalizeRequestedStatus($request->filled('status') ? (string) $request->status : 'all');
+        $monitorIssue    = $this->normalizeRequestedIssue($request->filled('issue') ? (string) $request->issue : 'all');
+        $monitorSearch   = $request->filled('search') ? trim((string) $request->search) : null;
+
+        $dashboardCacheKey = 'apz_dashboard_data_v3_' . md5(
+            ($monitorDistrict ?? 'all') . '|' .
+            $monitorStatus . '|' .
+            $monitorIssue . '|' .
+            mb_strtolower($monitorSearch ?? '')
+        );
+
+        $viewData = Cache::remember($dashboardCacheKey, self::CACHE_REPORT, function () use ($monitorDistrict, $monitorStatus, $monitorIssue, $monitorSearch) {
 
             // Overall stats
             $global = DB::selectOne("
@@ -127,14 +139,35 @@ class TransactionController extends Controller
             ");
 
             // Contract stats
+            $statusExpr = "LOWER(TRIM(COALESCE(contract_status, '')))";
+            $cancelledExpr = "({$statusExpr} LIKE '%bekor%' OR {$statusExpr} LIKE '%бекор%' OR {$statusExpr} LIKE '%cancel%')";
+            $completedExpr = "({$statusExpr} LIKE '%yakun%' OR {$statusExpr} LIKE '%якун%' OR {$statusExpr} LIKE '%tugal%' OR {$statusExpr} LIKE '%complete%')";
+
             $contractStats = DB::selectOne("
                 SELECT
                     COUNT(*) as total,
-                    SUM(CASE WHEN contract_status = 'Yakunlagan' THEN 1 ELSE 0 END) as completed,
-                    SUM(CASE WHEN contract_status = 'Bekor qilingan' THEN 1 ELSE 0 END) as cancelled,
-                    SUM(CASE WHEN (contract_status IS NULL OR contract_status = '') THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN {$completedExpr} THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN {$cancelledExpr} THEN 1 ELSE 0 END) as cancelled,
+                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr}) THEN 1 ELSE 0 END) as active,
                     SUM(contract_value) as total_value
                 FROM apz_contracts
+            ");
+
+            $debtorsStats = DB::selectOne("
+                SELECT
+                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr})
+                              AND COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0)
+                             THEN 1 ELSE 0 END) as debtors_count,
+                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr})
+                             THEN GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)
+                             ELSE 0 END) as debt_total
+                FROM apz_contracts c
+                LEFT JOIN (
+                    SELECT contract_id, SUM(amount) as total_paid
+                    FROM apz_payments
+                    WHERE flow = 'Приход'
+                    GROUP BY contract_id
+                ) paid ON paid.contract_id = c.contract_id
             ");
 
             // Monthly income — last 18 months
@@ -194,16 +227,29 @@ class TransactionController extends Controller
             // ── Reuse summary() drill-down data (all years) ────────────────
             // Call summary logic with year=null to get full drill-down dataset
             $drillDown = $this->buildSummaryDrillDown(null); // null = all years
+            $monitoring = $this->buildMonitoringData([
+                'district' => $monitorDistrict,
+                'status'   => $monitorStatus,
+                'issue'    => $monitorIssue,
+                'search'   => $monitorSearch,
+            ]);
 
             // ── 8. Available years ────────────────────────────────────────
             $availableYears = DB::table('apz_payments')
                 ->selectRaw('DISTINCT year')->whereNotNull('year')->where('year', '>', 0)
                 ->orderBy('year', 'desc')->pluck('year')->toArray();
 
+            $availableDistricts = DB::table('apz_contracts')
+                ->selectRaw('DISTINCT district')
+                ->whereNotNull('district')->where('district', '!=', '')
+                ->orderBy('district')
+                ->pluck('district')
+                ->toArray();
+
             return array_merge($drillDown, compact(
-                'global', 'contractStats',
-                'monthlyStats', 'districtStats', 'typeStats', 'planFact'
-            ));
+                'global', 'contractStats', 'debtorsStats',
+                'monthlyStats', 'districtStats', 'typeStats', 'planFact', 'availableDistricts'
+            ), $monitoring);
         });
 
         // Merge drill-down data from summary cache
@@ -211,6 +257,11 @@ class TransactionController extends Controller
             return $this->buildSummaryDrillDown(null);
         });
         $viewData = array_merge($viewData, $drillDownData);
+
+        $viewData['selectedMonitoringDistrict'] = $monitorDistrict;
+        $viewData['selectedMonitoringStatus']   = $monitorStatus;
+        $viewData['selectedMonitoringIssue']    = $monitorIssue;
+        $viewData['monitoringSearch']           = $monitorSearch;
 
         return view('transactions.dashboard', $viewData);
     }
@@ -238,25 +289,40 @@ class TransactionController extends Controller
     public function summary2(Request $request)
     {
         $district = $request->filled('district') ? $request->district : null;
-        $status   = $request->filled('status')   ? $request->status   : null;
+        $statusInput = $request->filled('status') ? (string) $request->status : 'all';
+        $status      = $this->normalizeRequestedStatus($statusInput);
+        $issueInput  = $request->filled('issue') ? (string) $request->issue : 'all';
+        $issue       = $this->normalizeRequestedIssue($issueInput);
+        $searchTerm  = $request->filled('search') ? trim((string) $request->search) : null;
         $page     = max(1, (int) $request->get('page', 1));
         $perPage  = 25;
         $offset   = ($page - 1) * $perPage;
 
-        $cacheKey = 'apz_summary2_' . md5(($district ?? 'all') . '|' . ($status ?? 'all'));
+        $cacheKey = 'apz_summary2_' . md5(
+            ($district ?? 'all') . '|' .
+            $status . '|' .
+            $issue . '|' .
+            mb_strtolower($searchTerm ?? '')
+        );
 
-        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($district, $status) {
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($district, $status, $issue, $searchTerm) {
 
             $cWhere = [];
             if ($district) $cWhere[] = "c.district = " . DB::getPdo()->quote($district);
-            if ($status === 'active')    $cWhere[] = "(c.contract_status IS NULL OR c.contract_status = '')";
-            if ($status === 'completed') $cWhere[] = "c.contract_status = 'Yakunlagan'";
-            if ($status === 'cancelled') $cWhere[] = "c.contract_status = 'Bekor qilingan'";
+            $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
+            if ($statusWhere) $cWhere[] = $statusWhere;
+            $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
+            if ($issueWhere) $cWhere[] = $issueWhere;
+            if ($searchTerm) {
+                $q = DB::getPdo()->quote('%' . $searchTerm . '%');
+                $cWhere[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
+            }
             $cSQL = $cWhere ? 'WHERE ' . implode(' AND ', $cWhere) : '';
 
             $contracts = DB::select("
                 SELECT c.id, c.contract_id, c.district, c.investor_name, c.inn,
                        c.contract_number, c.contract_date, c.contract_status,
+                       c.construction_issues,
                        c.contract_value, c.payment_terms, c.installments_count,
                        COALESCE(paid.total_paid, 0) as total_paid,
                        COALESCE(paid.payment_count, 0) as payment_count
@@ -272,6 +338,13 @@ class TransactionController extends Controller
                 {$cSQL}
                 ORDER BY c.contract_id
             ");
+
+            foreach ($contracts as $contract) {
+                $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
+                $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
+                $contract->issue_key    = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
+                $contract->issue_label  = $this->issueStatusLabel($contract->construction_issues ?? null);
+            }
 
             $grandPlan = $grandFact = 0;
             foreach ($contracts as $c) {
@@ -302,10 +375,115 @@ class TransactionController extends Controller
             'perPage'          => $perPage,
             'lastPage'         => $lastPage,
             'selectedDistrict' => $district,
-            'selectedStatus'   => $status,
+            'selectedStatus'   => $status === 'all' ? null : $status,
+            'selectedIssue'    => $issue === 'all' ? null : $issue,
+            'searchTerm'       => $searchTerm,
         ]);
 
         return view('transactions.summary2', $viewData);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // DEBTS — Active/Completed/Cancelled contracts with debt calculation
+    // ──────────────────────────────────────────────────────────────────────
+    public function debts(Request $request)
+    {
+        $statusInput = $request->filled('status') ? (string) $request->status : 'in_progress';
+        $status      = $this->normalizeRequestedStatus($statusInput, 'in_progress');
+        $issueInput  = $request->filled('issue') ? (string) $request->issue : 'all';
+        $issue       = $this->normalizeRequestedIssue($issueInput);
+        $district    = $request->filled('district') ? trim((string) $request->district) : null;
+        $searchTerm  = $request->filled('search') ? trim((string) $request->search) : null;
+        $page        = max(1, (int) $request->get('page', 1));
+        $perPage     = 25;
+
+        $cacheKey = 'apz_debts_' . md5(
+            $status . '|' .
+            $issue . '|' .
+            ($district ?? 'all') . '|' .
+            mb_strtolower($searchTerm ?? '')
+        );
+
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $district, $searchTerm) {
+            $where = [];
+            $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
+            if ($statusWhere) $where[] = $statusWhere;
+            $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
+            if ($issueWhere) $where[] = $issueWhere;
+            if ($district) $where[] = "c.district = " . DB::getPdo()->quote($district);
+            if ($searchTerm) {
+                $q = DB::getPdo()->quote('%' . $searchTerm . '%');
+                $where[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
+            }
+
+            $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+            $contracts = DB::select("
+                SELECT c.id, c.contract_id, c.investor_name, c.district,
+                       c.contract_number, c.contract_date, c.contract_status,
+                       c.construction_issues, c.contract_value,
+                       COALESCE(paid.total_paid, 0) as total_paid
+                FROM apz_contracts c
+                LEFT JOIN (
+                    SELECT contract_id,
+                           SUM(amount) as total_paid
+                    FROM apz_payments
+                    WHERE flow = 'Приход'
+                    GROUP BY contract_id
+                ) paid ON paid.contract_id = c.contract_id
+                {$whereSql}
+                ORDER BY c.contract_id
+            ");
+
+            $grandPlan = 0;
+            $grandFact = 0;
+
+            foreach ($contracts as $contract) {
+                $plan = (float) ($contract->contract_value ?? 0);
+                $fact = (float) ($contract->total_paid ?? 0);
+                $diff = $plan - $fact;
+
+                $contract->status_key      = $this->normalizeContractStatus($contract->contract_status ?? null);
+                $contract->status_label    = $this->contractStatusLabel($contract->contract_status ?? null);
+                $contract->issue_key       = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
+                $contract->issue_label     = $this->issueStatusLabel($contract->construction_issues ?? null);
+                $contract->debt            = max($diff, 0);
+                $contract->plan_fact_diff  = $diff;
+
+                $grandPlan += $plan;
+                $grandFact += $fact;
+            }
+
+            $availableDistricts = DB::table('apz_contracts')
+                ->selectRaw('DISTINCT district')
+                ->whereNotNull('district')->where('district', '!=', '')
+                ->orderBy('district')
+                ->pluck('district')
+                ->toArray();
+
+            return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
+        });
+
+        $allContracts = $allData['contracts'];
+        $total        = count($allContracts);
+        $lastPage     = (int) ceil($total / $perPage) ?: 1;
+        $page         = min($page, $lastPage);
+        $contracts    = array_slice($allContracts, ($page - 1) * $perPage, $perPage);
+
+        return view('transactions.debts', [
+            'contracts'      => $contracts,
+            'total'          => $total,
+            'page'           => $page,
+            'perPage'        => $perPage,
+            'lastPage'       => $lastPage,
+            'grandPlan'      => $allData['grandPlan'],
+            'grandFact'      => $allData['grandFact'],
+            'availableDistricts' => $allData['availableDistricts'] ?? [],
+            'selectedStatus' => $status,
+            'selectedIssue'  => $issue,
+            'selectedDistrict' => $district,
+            'searchTerm' => $searchTerm,
+        ]);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -436,9 +614,17 @@ class TransactionController extends Controller
         }
         // Clear all apz_ prefixed keys reliably
         $keys = [
-            'apz_filters', 'apz_summary', 'apz_dashboard_data',
+            'apz_filters', 'apz_summary', 'apz_dashboard_data', 'apz_dashboard_data_v2',
+            'apz_dashboard_data_v3_' . md5('all|all|all|'),
             'apz_summary_report_all',
-            'apz_summary2_' . md5('all|all'),
+            'apz_summary2_' . md5('all|all|all|'),
+            'apz_summary2_' . md5('all|in_progress|all|'),
+            'apz_summary2_' . md5('all|completed|all|'),
+            'apz_summary2_' . md5('all|cancelled|all|'),
+            'apz_debts_' . md5('in_progress|all|all|'),
+            'apz_debts_' . md5('all|all|all|'),
+            'apz_debts_' . md5('completed|all|all|'),
+            'apz_debts_' . md5('cancelled|all|all|'),
         ];
         foreach ($keys as $k) Cache::forget($k);
         // Also clear year-specific summary caches
@@ -459,12 +645,384 @@ class TransactionController extends Controller
         $this->dashboard(request());
         $this->summary(request());
         $this->summary2(request());
+        $this->debts(request());
 
         if (request()->expectsJson()) {
             return response()->json(['message' => 'Cache warmed']);
         }
         return redirect()->route('admin.dashboard')
             ->with('cache_cleared', 'Kesh qayta qurildi.');
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // HELPERS: Contract status & construction issue normalization
+    // ──────────────────────────────────────────────────────────────────────
+    private function normalizeRequestedStatus(?string $status, string $default = 'all'): string
+    {
+        $status = strtolower(trim((string) $status));
+        if ($status === 'active') $status = 'in_progress';
+        if ($status === '') $status = $default;
+
+        return in_array($status, ['all', 'in_progress', 'completed', 'cancelled'], true)
+            ? $status
+            : $default;
+    }
+
+    private function buildContractStatusWhereSql(string $status, string $alias = 'c'): ?string
+    {
+        if ($status === 'all') return null;
+
+        $statusExpr = "LOWER(TRIM(COALESCE({$alias}.contract_status, '')))";
+        $cancelled  = "({$statusExpr} LIKE '%bekor%' OR {$statusExpr} LIKE '%бекор%' OR {$statusExpr} LIKE '%cancel%')";
+        $completed  = "({$statusExpr} LIKE '%yakun%' OR {$statusExpr} LIKE '%якун%' OR {$statusExpr} LIKE '%tugal%' OR {$statusExpr} LIKE '%complete%')";
+
+        return match ($status) {
+            'cancelled'   => $cancelled,
+            'completed'   => $completed,
+            'in_progress' => "(NOT {$cancelled} AND NOT {$completed})",
+            default       => null,
+        };
+    }
+
+    private function normalizeContractStatus(?string $status): string
+    {
+        $status = mb_strtolower(trim((string) $status));
+        if ($status === '') return 'in_progress';
+
+        if (str_contains($status, 'bekor') || str_contains($status, 'бекор') || str_contains($status, 'cancel')) {
+            return 'cancelled';
+        }
+
+        if (str_contains($status, 'yakun') || str_contains($status, 'якун') || str_contains($status, 'tugal') || str_contains($status, 'complete')) {
+            return 'completed';
+        }
+
+        return 'in_progress';
+    }
+
+    private function contractStatusLabel(?string $status): string
+    {
+        return match ($this->normalizeContractStatus($status)) {
+            'completed'   => 'Якунланган',
+            'cancelled'   => 'Бекор қилинган',
+            default       => 'Амалдаги',
+        };
+    }
+
+    private function normalizeConstructionIssue(?string $issues): string
+    {
+        $issues = mb_strtolower(trim((string) $issues));
+        if ($issues === '') return 'unknown';
+
+        if (
+            str_contains($issues, 'muammosiz') ||
+            str_contains($issues, 'муаммосиз') ||
+            str_contains($issues, 'no problem') ||
+            str_contains($issues, 'без проблем')
+        ) {
+            return 'no_problem';
+        }
+
+        if (
+            str_contains($issues, 'muammoli') ||
+            str_contains($issues, 'муаммоли') ||
+            str_contains($issues, 'problem') ||
+            str_contains($issues, 'muammo') ||
+            str_contains($issues, 'муаммо')
+        ) {
+            return 'problem';
+        }
+
+        return 'unknown';
+    }
+
+    private function normalizeRequestedIssue(?string $issue): string
+    {
+        $issue = strtolower(trim((string) $issue));
+        if ($issue === '') $issue = 'all';
+
+        return in_array($issue, ['all', 'problem', 'no_problem', 'unknown'], true)
+            ? $issue
+            : 'all';
+    }
+
+    private function issueStatusLabel(?string $issues): string
+    {
+        return match ($this->normalizeConstructionIssue($issues)) {
+            'problem'    => 'Муаммоли',
+            'no_problem' => 'Муаммосиз',
+            default      => '—',
+        };
+    }
+
+    private function buildConstructionIssueWhereSql(string $issue, string $alias = 'c'): ?string
+    {
+        $issueExpr  = "LOWER(TRIM(COALESCE({$alias}.construction_issues, '')))";
+        $noProblem  = "({$issueExpr} LIKE '%muammosiz%' OR {$issueExpr} LIKE '%муаммосиз%' OR {$issueExpr} LIKE '%no problem%' OR {$issueExpr} LIKE '%без проблем%')";
+        $problem    = "({$issueExpr} LIKE '%muammoli%' OR {$issueExpr} LIKE '%муаммоли%' OR {$issueExpr} LIKE '%muammo%' OR {$issueExpr} LIKE '%муаммо%' OR ({$issueExpr} LIKE '%problem%' AND {$issueExpr} NOT LIKE '%no problem%'))";
+
+        return match ($issue) {
+            'problem'    => $problem,
+            'no_problem' => $noProblem,
+            'unknown'    => "(NOT {$problem} AND NOT {$noProblem})",
+            default      => null,
+        };
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // MONITORING TABLES DATA for dashboard
+    // ──────────────────────────────────────────────────────────────────────
+    private function buildMonitoringData(array $filters = []): array
+    {
+        $status   = $this->normalizeRequestedStatus((string) ($filters['status'] ?? 'all'));
+        $issue    = $this->normalizeRequestedIssue((string) ($filters['issue'] ?? 'all'));
+        $district = isset($filters['district']) ? trim((string) $filters['district']) : null;
+        $search   = isset($filters['search']) ? trim((string) $filters['search']) : null;
+        if ($district === '') $district = null;
+        if ($search === '') $search = null;
+
+        $problemWhere   = $this->buildConstructionIssueWhereSql('problem', 'c');
+        $noProblemWhere = $this->buildConstructionIssueWhereSql('no_problem', 'c');
+
+        $baseWhere = [];
+        $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
+        if ($statusWhere) $baseWhere[] = $statusWhere;
+        $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
+        if ($issueWhere) $baseWhere[] = $issueWhere;
+        if ($district) $baseWhere[] = "c.district = " . DB::getPdo()->quote($district);
+        if ($search) {
+            $q = DB::getPdo()->quote('%' . $search . '%');
+            $baseWhere[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR c.district LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
+        }
+
+        $paidJoinSql = "
+            LEFT JOIN (
+                SELECT contract_id, SUM(amount) as total_paid
+                FROM apz_payments
+                WHERE flow = 'Приход'
+                GROUP BY contract_id
+            ) paid ON paid.contract_id = c.contract_id
+        ";
+
+        $statsSelect = "
+            COUNT(*) as contracts_count,
+            COALESCE(SUM(c.contract_value), 0) as contract_value,
+            COALESCE(SUM(COALESCE(paid.total_paid, 0)), 0) as total_paid,
+            COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
+        ";
+
+        $fetchStats = function (array $conditions) use ($paidJoinSql, $statsSelect) {
+            $clean = array_values(array_filter($conditions, fn ($c) => is_string($c) && trim($c) !== ''));
+            $whereSql = $clean ? 'WHERE ' . implode(' AND ', $clean) : '';
+            return DB::selectOne("SELECT {$statsSelect} FROM apz_contracts c {$paidJoinSql} {$whereSql}");
+        };
+
+        $scopeStats    = $fetchStats($baseWhere);
+        $scopeProblem  = $fetchStats(array_merge($baseWhere, [$problemWhere]));
+        $scopeClear    = $fetchStats(array_merge($baseWhere, [$noProblemWhere]));
+        $scopeDebt     = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']));
+        $scopeFullPaid = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > 0 AND COALESCE(paid.total_paid, 0) >= COALESCE(c.contract_value, 0))']));
+
+        $toRow = function (string $label, object $row) {
+            $plan = (float) ($row->contract_value ?? 0);
+            $fact = (float) ($row->total_paid ?? 0);
+            return [
+                'label'           => $label,
+                'contracts_count' => (int) ($row->contracts_count ?? 0),
+                'contract_value'  => $plan,
+                'total_paid'      => $fact,
+                'debt_total'      => (float) ($row->debt_total ?? 0),
+                'pct'             => $plan > 0 ? round($fact / $plan * 100, 1) : 0,
+            ];
+        };
+
+        $monitoringSummaryRows = [
+            $toRow('Фильтр бўйича шартномалар', $scopeStats),
+            $toRow('Муаммоли', $scopeProblem),
+            $toRow('Муаммосиз', $scopeClear),
+            $toRow('100% бажарилган', $scopeFullPaid),
+            $toRow('Қарздорлар', $scopeDebt),
+        ];
+
+        $districtConditions = array_merge($baseWhere, ["c.district IS NOT NULL AND c.district != ''"]);
+        $districtWhereSql = 'WHERE ' . implode(' AND ', $districtConditions);
+
+        $monitoringDistrictRows = DB::select("
+            SELECT c.district,
+                   COUNT(*) as contracts_count,
+                   COALESCE(SUM(c.contract_value), 0) as contract_value,
+                   COALESCE(SUM(COALESCE(paid.total_paid, 0)), 0) as total_paid,
+                   COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total,
+                   SUM(CASE WHEN {$problemWhere} THEN 1 ELSE 0 END) as problem_count,
+                   SUM(CASE WHEN {$noProblemWhere} THEN 1 ELSE 0 END) as no_problem_count
+            FROM apz_contracts c
+            {$paidJoinSql}
+            {$districtWhereSql}
+            GROUP BY c.district
+            ORDER BY debt_total DESC, contract_value DESC
+        ");
+
+        foreach ($monitoringDistrictRows as $row) {
+            $plan = (float) ($row->contract_value ?? 0);
+            $fact = (float) ($row->total_paid ?? 0);
+            $row->pct = $plan > 0 ? round($fact / $plan * 100, 1) : 0;
+        }
+
+        $topDebtConditions = array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']);
+        $topDebtWhereSql = $topDebtConditions ? 'WHERE ' . implode(' AND ', $topDebtConditions) : '';
+
+        $monitoringTopDebts = DB::select("
+            SELECT c.investor_name, c.district, c.contract_number, c.contract_date, c.phone,
+                   c.contract_status, c.construction_issues,
+                   COALESCE(c.contract_value, 0) as contract_value,
+                   COALESCE(paid.total_paid, 0) as total_paid,
+                   GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0) as debt_total
+            FROM apz_contracts c
+            {$paidJoinSql}
+            {$topDebtWhereSql}
+            ORDER BY debt_total DESC
+            LIMIT 32
+        ");
+
+        foreach ($monitoringTopDebts as $row) {
+            $row->issue_label = $this->issueStatusLabel($row->construction_issues ?? null);
+        }
+
+        $newContractConditions = array_merge($baseWhere, [
+            'c.contract_date IS NOT NULL',
+            "c.contract_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')",
+            "c.contract_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)",
+        ]);
+        $newContractWhereSql = 'WHERE ' . implode(' AND ', $newContractConditions);
+
+        $monitoringNewContracts = DB::select("
+            SELECT DATE(c.contract_date) as contract_day,
+                   COUNT(*) as contracts_count,
+                   COALESCE(SUM(c.contract_value), 0) as contract_value,
+                   COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
+            FROM apz_contracts c
+            {$paidJoinSql}
+            {$newContractWhereSql}
+            GROUP BY DATE(c.contract_date)
+            ORDER BY DATE(c.contract_date)
+        ");
+
+        if (empty($monitoringNewContracts)) {
+            $fallbackConditions = array_merge($baseWhere, [
+                'c.contract_date IS NOT NULL',
+                'c.contract_date >= DATE_SUB(CURDATE(), INTERVAL 31 DAY)',
+            ]);
+            $fallbackWhereSql = 'WHERE ' . implode(' AND ', $fallbackConditions);
+
+            $monitoringNewContracts = DB::select("
+                SELECT DATE(c.contract_date) as contract_day,
+                       COUNT(*) as contracts_count,
+                       COALESCE(SUM(c.contract_value), 0) as contract_value,
+                       COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
+                FROM apz_contracts c
+                {$paidJoinSql}
+                {$fallbackWhereSql}
+                GROUP BY DATE(c.contract_date)
+                ORDER BY DATE(c.contract_date)
+            ");
+        }
+
+        $planByMonth = [];
+        $scheduleQuery = DB::table('apz_contracts as c')
+            ->whereNotNull('c.payment_schedule')
+            ->whereRaw("c.payment_schedule != 'null' AND c.payment_schedule != '{}' AND c.payment_schedule != '[]'");
+        foreach ($baseWhere as $condition) {
+            $scheduleQuery->whereRaw($condition);
+        }
+        $scheduleRows = $scheduleQuery->get(['c.payment_schedule'])->pluck('payment_schedule');
+
+        foreach ($scheduleRows as $scheduleJson) {
+            $schedule = json_decode($scheduleJson, true);
+            if (!is_array($schedule)) continue;
+
+            foreach ($schedule as $rawDate => $amount) {
+                try {
+                    $ym = \Carbon\Carbon::parse($rawDate)->format('Y-m');
+                    $planByMonth[$ym] = ($planByMonth[$ym] ?? 0) + (float) $amount;
+                } catch (\Exception $e) {
+                    continue;
+                }
+            }
+        }
+
+        $paymentsScopeSql = $baseWhere ? (' AND ' . implode(' AND ', $baseWhere)) : '';
+
+        $monthlyFactRows = DB::select("
+            SELECT DATE_FORMAT(p.payment_date, '%Y-%m') as ym,
+                   COALESCE(SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END), 0) as fact_total,
+                   COALESCE(SUM(CASE WHEN p.type='АПЗ тўлови' AND p.flow='Приход' THEN p.amount ELSE 0 END), 0) as apz_payment,
+                   COALESCE(SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END), 0) as apz_refund,
+                   COALESCE(SUM(CASE WHEN p.type='Пеня тўлови' AND p.flow='Приход' THEN p.amount ELSE 0 END), 0) as penalty_payment
+            FROM apz_payments p
+            LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
+            WHERE p.payment_date IS NOT NULL {$paymentsScopeSql}
+            GROUP BY DATE_FORMAT(p.payment_date, '%Y-%m')
+        ");
+
+        $factByMonth = [];
+        foreach ($monthlyFactRows as $row) {
+            $factByMonth[$row->ym] = $row;
+        }
+
+        $ruMonths = [
+            1=>'Январь', 2=>'Февраль', 3=>'Март', 4=>'Апрель', 5=>'Май', 6=>'Июнь',
+            7=>'Июль', 8=>'Август', 9=>'Сентябрь', 10=>'Октябрь', 11=>'Ноябрь', 12=>'Декабрь',
+        ];
+
+        $allMonths = array_unique(array_merge(array_keys($planByMonth), array_keys($factByMonth)));
+        sort($allMonths);
+        if (count($allMonths) > 36) {
+            $allMonths = array_slice($allMonths, -36);
+        }
+
+        $monitoringMonthlyRows = [];
+        foreach ($allMonths as $ym) {
+            [$year, $month] = explode('-', $ym);
+            $monthNum = (int) $month;
+            $factRow  = $factByMonth[$ym] ?? null;
+            $plan     = (float) ($planByMonth[$ym] ?? 0);
+            $fact     = (float) ($factRow->fact_total ?? 0);
+
+            $monitoringMonthlyRows[] = [
+                'ym'              => $ym,
+                'month_label'     => ($ruMonths[$monthNum] ?? $ym) . ' ' . $year,
+                'plan_total'      => $plan,
+                'fact_total'      => $fact,
+                'apz_payment'     => (float) ($factRow->apz_payment ?? 0),
+                'apz_refund'      => (float) ($factRow->apz_refund ?? 0),
+                'penalty_payment' => (float) ($factRow->penalty_payment ?? 0),
+                'plan_fact_diff'  => $plan - $fact,
+            ];
+        }
+
+        $monitoringDailyRows = DB::select("
+            SELECT DATE(p.payment_date) as pay_day,
+                   COALESCE(SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END), 0) as total_income,
+                   COALESCE(SUM(CASE WHEN p.type='АПЗ тўлови' AND p.flow='Приход' THEN p.amount ELSE 0 END), 0) as apz_payment,
+                   COALESCE(SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END), 0) as apz_refund,
+                   COALESCE(SUM(CASE WHEN p.type='Пеня тўлови' AND p.flow='Приход' THEN p.amount ELSE 0 END), 0) as penalty_payment
+            FROM apz_payments p
+            LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
+            WHERE p.payment_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND p.payment_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+              {$paymentsScopeSql}
+            GROUP BY DATE(p.payment_date)
+            ORDER BY DATE(p.payment_date)
+        ");
+
+        return compact(
+            'monitoringSummaryRows',
+            'monitoringDistrictRows',
+            'monitoringTopDebts',
+            'monitoringNewContracts',
+            'monitoringMonthlyRows',
+            'monitoringDailyRows'
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

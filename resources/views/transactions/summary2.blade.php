@@ -35,6 +35,14 @@
     .status-completed { background:rgba(6,184,56,.1);  color:#0a8a2e; }
     .status-cancelled { background:rgba(230,50,96,.1); color:#c02050; }
 
+    .issue-badge {
+        display:inline-block; padding:3px 9px; border-radius:6px;
+        font-size:.7rem; font-weight:600; white-space:nowrap;
+    }
+    .issue-problem   { background:rgba(230,50,96,.1); color:#c02050; }
+    .issue-ok        { background:rgba(6,184,56,.1); color:#0a8a2e; }
+    .issue-unknown   { background:#f1f3f5; color:#7f8a9b; }
+
     .pbar-wrap { background:#e4e4e4; border-radius:3px; height:6px; min-width:60px; }
     .pbar      { height:6px; border-radius:3px; background:#018c87; }
     .pbar.over { background:#e63260; }
@@ -157,13 +165,21 @@
             <option value="{{ $d }}" {{ $selectedDistrict === $d ? 'selected' : '' }}>{{ $d }}</option>
             @endforeach
         </select>
-        <select name="status" class="form-select form-select-sm" style="width:160px;" onchange="this.form.submit()">
-            <option value="">Барча ҳолат</option>
-            <option value="active"   {{ $selectedStatus === 'active'    ? 'selected' : '' }}>Фаол</option>
-            <option value="completed" {{ $selectedStatus === 'completed' ? 'selected' : '' }}>Якунлаган</option>
-            <option value="cancelled" {{ $selectedStatus === 'cancelled' ? 'selected' : '' }}>Бекор қилинган</option>
+        <select name="status" class="form-select form-select-sm" style="width:180px;" onchange="this.form.submit()">
+            <option value="all" {{ !$selectedStatus ? 'selected' : '' }}>Барчаси</option>
+            <option value="in_progress" {{ $selectedStatus === 'in_progress' ? 'selected' : '' }}>Амалдаги</option>
+            <option value="completed"   {{ $selectedStatus === 'completed' ? 'selected' : '' }}>Якунланган</option>
+            <option value="cancelled"   {{ $selectedStatus === 'cancelled' ? 'selected' : '' }}>Бекор қилинган</option>
         </select>
-        @if($selectedDistrict || $selectedStatus)
+        <select name="issue" class="form-select form-select-sm" style="width:190px;" onchange="this.form.submit()">
+            <option value="all" {{ !$selectedIssue ? 'selected' : '' }}>Муаммо: барчаси</option>
+            <option value="problem" {{ $selectedIssue === 'problem' ? 'selected' : '' }}>Муаммоли</option>
+            <option value="no_problem" {{ $selectedIssue === 'no_problem' ? 'selected' : '' }}>Муаммосиз</option>
+            <option value="unknown" {{ $selectedIssue === 'unknown' ? 'selected' : '' }}>Кўрсатилмаган</option>
+        </select>
+        <input type="text" name="search" value="{{ $searchTerm }}" class="form-control form-control-sm" style="width:240px;" placeholder="Компания / шартнома / ИНН / ID">
+        <button type="submit" class="platon-btn platon-btn-outline platon-btn-sm">Қидириш</button>
+        @if($selectedDistrict || $selectedStatus || $selectedIssue || $searchTerm)
         <a href="{{ route('summary2') }}" class="platon-btn platon-btn-outline platon-btn-sm">Тозалаш</a>
         @endif
         <button onclick="window.print()" type="button" class="print-btn" style="padding:6px 16px;font-size:.8rem;margin-left:auto;">
@@ -186,6 +202,7 @@
                     <th>Шартнома</th>
                     <th>Шартнома<br>санаси</th>
                     <th>Ҳолат</th>
+                    <th>Қурилиш<br>ҳолати</th>
                     <th>Шартнома<br>қиймати</th>
                     <th>Тўлов<br>шарти</th>
                     <th>Жадвал<br>сони</th>
@@ -198,7 +215,7 @@
                 {{-- Grand total row --}}
                 <tr class="total-row">
                     <td class="c">—</td>
-                    <td colspan="5" style="font-weight:700;">ЖАМИ ({{ $total }} шартнома)</td>
+                    <td colspan="6" style="font-weight:700;">ЖАМИ ({{ $total }} шартнома)</td>
                     <td class="r">{{ number_format($grandPlan / 1000000, 2, '.', ' ') }}</td>
                     <td></td>
                     <td></td>
@@ -223,16 +240,21 @@
                     $barW    = min($pct, 100);
                     $isOver  = $pct >= 100;
 
-                    $statusClass = match(true) {
-                        $c->contract_status === 'Yakunlagan'     => 'status-completed',
-                        $c->contract_status === 'Bekor qilingan' => 'status-cancelled',
-                        default                                  => 'status-active',
+                    $statusClass = match($c->status_key ?? 'in_progress') {
+                        'completed' => 'status-completed',
+                        'cancelled' => 'status-cancelled',
+                        default     => 'status-active',
                     };
-                    $statusLabel = match(true) {
-                        $c->contract_status === 'Yakunlagan'     => 'Якунлаган',
-                        $c->contract_status === 'Bekor qilingan' => 'Бекор қилинган',
-                        default                                  => 'Фаол',
+
+                    $statusLabel = $c->status_label ?? 'Амалдаги';
+
+                    $issueClass = match($c->issue_key ?? 'unknown') {
+                        'problem'    => 'issue-problem',
+                        'no_problem' => 'issue-ok',
+                        default      => 'issue-unknown',
                     };
+
+                    $issueLabel = $c->issue_label ?? '—';
                     $rowNum = ($page - 1) * $perPage + $i + 1;
                 @endphp
                 <tr class="clickable" onclick="openContract({{ $c->contract_id }}, '{{ addslashes($c->contract_number ?? 'ID:'.$c->contract_id) }} — {{ addslashes($c->investor_name ?? '') }}')">
@@ -243,6 +265,9 @@
                     <td class="c" style="font-size:.78rem;">{{ $c->contract_date ? \Carbon\Carbon::parse($c->contract_date)->format('d.m.Y') : '—' }}</td>
                     <td class="c">
                         <span class="status-badge {{ $statusClass }}">{{ $statusLabel }}</span>
+                    </td>
+                    <td class="c">
+                        <span class="issue-badge {{ $issueClass }}">{{ $issueLabel }}</span>
                     </td>
                     <td class="r">{{ $plan > 0 ? number_format($plan / 1000000, 2, '.', ' ') : '—' }}</td>
                     <td class="c" style="font-size:.75rem;">{{ $c->payment_terms ?: '—' }}</td>
@@ -271,7 +296,12 @@
     @if($lastPage > 1)
     <div class="pg-wrap">
         @php
-            $qs = array_filter(['district'=>$selectedDistrict,'status'=>$selectedStatus]);
+            $qs = array_filter([
+                'district' => $selectedDistrict,
+                'status'   => $selectedStatus,
+                'issue'    => $selectedIssue,
+                'search'   => $searchTerm,
+            ]);
         @endphp
         @if($page > 1)
             <a href="{{ route('summary2', array_merge($qs,['page'=>1])) }}" class="pg-btn">&laquo;</a>
