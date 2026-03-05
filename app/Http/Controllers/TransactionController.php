@@ -677,6 +677,22 @@ class TransactionController extends Controller
             }
 
             $diffAmount = max($scheduleAmount - $factAmount, 0.0);
+            $diffPercent = null;
+            $diffPercentClass = 'pct-none';
+
+            if ($scheduleAmount > 0.0) {
+                $diffPercent = max(min(($factAmount / $scheduleAmount) * 100, 100), 0);
+
+                if ($diffPercent < 10) {
+                    $diffPercentClass = 'pct-red';
+                } elseif ($diffPercent < 35) {
+                    $diffPercentClass = 'pct-orange';
+                } elseif ($diffPercent < 60) {
+                    $diffPercentClass = 'pct-yellow';
+                } else {
+                    $diffPercentClass = 'pct-green';
+                }
+            }
 
             $scheduleRows[] = [
                 'row_num' => $index + 1,
@@ -686,6 +702,8 @@ class TransactionController extends Controller
                 'fact_amount' => $this->formatNumber($factAmount, 2),
                 'diff_amount' => $this->formatNumber($diffAmount, 2),
                 'diff_class' => $diffAmount > 0.0 ? 'flow-out' : 'flow-in',
+                'diff_pct' => $diffPercent === null ? '—' : $this->formatNumber($diffPercent, 1) . '%',
+                'diff_pct_class' => $diffPercentClass,
             ];
         }
 

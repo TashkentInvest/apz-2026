@@ -58,6 +58,11 @@
     .tbl td.c { text-align:center; }
     .flow-in { color:#0a8a2e; font-weight:700; }
     .flow-out { color:#e63260; font-weight:700; }
+    .pct-red { color:#e63260; font-weight:700; }
+    .pct-orange { color:#ef7d00; font-weight:700; }
+    .pct-yellow { color:#b58900; font-weight:700; }
+    .pct-green { color:#0a8a2e; font-weight:700; }
+    .pct-none { color:#8892a5; font-weight:600; }
 
     .pg-wrap { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:10px; flex-wrap:wrap; }
     .pg-btn {
@@ -117,6 +122,7 @@
                     <th>График суммаси</th>
                     <th>Факт сумма</th>
                     <th>График ва факт фарқи</th>
+                    <th>%</th>
                 </tr>
             </thead>
             <tbody>
@@ -128,9 +134,10 @@
                     <td class="r">{{ $row['schedule_amount'] }}</td>
                     <td class="r">{{ $row['fact_amount'] }}</td>
                     <td class="r {{ $row['diff_class'] }}">{{ $row['diff_amount'] }}</td>
+                    <td class="c {{ $row['diff_pct_class'] }}">{{ $row['diff_pct'] }}</td>
                 </tr>
                 @empty
-                <tr><td colspan="6" class="c" style="color:#8892a5;">Жадвал топилмади</td></tr>
+                <tr><td colspan="7" class="c" style="color:#8892a5;">Жадвал топилмади</td></tr>
                 @endforelse
             </tbody>
         </table>
