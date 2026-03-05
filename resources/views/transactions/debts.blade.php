@@ -88,13 +88,13 @@
         <div class="col-md-4">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['grand_plan_mln'] }}</div>
-                <div class="lbl">Жами шартнома қиймати (млн.сўм)</div>
+                <div class="lbl">Жами шартнома қиймати (сўм)</div>
             </div>
         </div>
         <div class="col-md-4">
             <div class="grand-stat">
                 <div class="val txt-danger">{{ $summaryStats['grand_debt_mln'] }}</div>
-                <div class="lbl">Жами қарздорлик (млн.сўм)</div>
+                <div class="lbl">Жами қарздорлик (бугунгача, сўм)</div>
             </div>
         </div>
     </div>
@@ -142,7 +142,7 @@
                     <th style="width:11%;">Қурилиш ҳолати</th>
                     <th style="width:9%;">Шартнома қиймати</th>
                     <th style="width:9%;">Факт тўлаган</th>
-                    <th style="width:9%;">Қарздорлик</th>
+                    <th style="width:9%;">Қарздорлик (бугунгача)</th>
                     <th style="width:9%;">План-Факт фарқи</th>
                 </tr>
             </thead>

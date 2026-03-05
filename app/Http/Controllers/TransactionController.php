@@ -179,8 +179,8 @@ class TransactionController extends Controller
             // Monthly income — last 18 months
             $monthlyStats = DB::select("
                 SELECT year, month,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
-                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) / 1000000 as expense,
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as income,
+                    SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as expense,
                     COUNT(*) as cnt
                 FROM apz_payments
                 WHERE payment_date >= DATE_SUB(CURDATE(), INTERVAL 18 MONTH)
@@ -194,7 +194,7 @@ class TransactionController extends Controller
             // District stats
             $districtStats = DB::select("
                 SELECT district,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as income,
                     COUNT(*) as cnt
                 FROM apz_payments
                 WHERE district IS NOT NULL AND district != ''
@@ -205,7 +205,7 @@ class TransactionController extends Controller
             // Payment type breakdown
             $typeStats = DB::select("
                 SELECT type,
-                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) / 1000000 as income,
+                    SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as income,
                     COUNT(*) as cnt
                 FROM apz_payments
                 WHERE type IS NOT NULL AND type != ''
@@ -216,8 +216,8 @@ class TransactionController extends Controller
             // Plan vs Fact — contracts with total planned vs total paid (joined)
             $planFact = DB::select("
                 SELECT c.district,
-                    SUM(c.contract_value) / 1000000 as plan_total,
-                    SUM(COALESCE(paid.total_paid, 0)) / 1000000 as fact_total
+                    SUM(c.contract_value) as plan_total,
+                    SUM(COALESCE(paid.total_paid, 0)) as fact_total
                 FROM apz_contracts c
                 LEFT JOIN (
                     SELECT contract_id, SUM(amount) as total_paid
@@ -343,7 +343,7 @@ class TransactionController extends Controller
                 SELECT c.id, c.contract_id, c.district, c.investor_name, c.inn,
                        c.contract_number, c.contract_date, c.contract_status,
                        c.construction_issues,
-                       c.contract_value, c.payment_terms, c.installments_count,
+                      c.contract_value, c.payment_terms, c.installments_count, c.payment_schedule,
                        COALESCE(paid.total_paid, 0) as total_paid,
                        COALESCE(paid.payment_count, 0) as payment_count
                 FROM apz_contracts c
@@ -368,7 +368,7 @@ class TransactionController extends Controller
 
             $grandPlan = $grandFact = 0;
             foreach ($contracts as $c) {
-                $grandPlan += (float) $c->contract_value;
+                $grandPlan += (float) ($c->contract_value ?? 0);
                 $grandFact += (float) $c->total_paid;
             }
 
@@ -421,15 +421,15 @@ class TransactionController extends Controller
             'lastPage' => $lastPage,
             'summaryStats' => [
                 'total_contracts' => $this->formatNumber($total),
-                'grand_plan_mln' => $this->formatNumber($grandPlan / 1000000, 1),
-                'grand_fact_mln' => $this->formatNumber($grandFact / 1000000, 1),
+                'grand_plan_mln' => $this->formatNumber($grandPlan, 1),
+                'grand_fact_mln' => $this->formatNumber($grandFact, 1),
                 'overall_pct' => $this->formatNumber($overallPct, 1),
                 'overall_pct_class' => $overallPct >= 100 ? 'txt-good' : 'txt-warn',
             ],
             'summaryRow' => [
-                'plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
-                'fact_mln' => $this->formatNumber($grandFact / 1000000, 2),
-                'balance_mln' => $this->formatNumber($summaryRowBalance / 1000000, 2),
+                'plan_mln' => $this->formatNumber($grandPlan, 2),
+                'fact_mln' => $this->formatNumber($grandFact, 2),
+                'balance_mln' => $this->formatNumber($summaryRowBalance, 2),
                 'balance_class' => $grandPlan > $grandFact ? 'txt-danger' : 'txt-good',
                 'progress_label' => $this->formatNumber($overallPct, 1) . '%',
                 'progress_width' => $summaryRowBarWidth,
@@ -477,7 +477,6 @@ class TransactionController extends Controller
             $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
             if ($issueWhere) $where[] = $issueWhere;
             if ($district) $where[] = "c.district = " . DB::getPdo()->quote($district);
-            if ($onlyDebtors) $where[] = '(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))';
             if ($searchTerm) {
                 $q = DB::getPdo()->quote('%' . $searchTerm . '%');
                 $where[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
@@ -488,7 +487,7 @@ class TransactionController extends Controller
             $contracts = DB::select("
                 SELECT c.id, c.contract_id, c.investor_name, c.district,
                        c.contract_number, c.contract_date, c.contract_status,
-                       c.construction_issues, c.contract_value,
+                      c.construction_issues, c.contract_value, c.payment_schedule,
                        COALESCE(paid.total_paid, 0) as total_paid
                 FROM apz_contracts c
                 LEFT JOIN (
@@ -504,9 +503,15 @@ class TransactionController extends Controller
 
             $grandPlan = 0;
             $grandFact = 0;
+            $grandDebt = 0;
+            $preparedContracts = [];
 
             foreach ($contracts as $contract) {
                 $plan = (float) ($contract->contract_value ?? 0);
+                $planDueToday = $this->resolvePlanAmountByToday(
+                    $plan,
+                    $contract->payment_schedule ?? null
+                );
                 $fact = (float) ($contract->total_paid ?? 0);
                 $diff = $plan - $fact;
 
@@ -514,12 +519,21 @@ class TransactionController extends Controller
                 $contract->status_label    = $this->contractStatusLabel($contract->contract_status ?? null);
                 $contract->issue_key       = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
                 $contract->issue_label     = $this->issueStatusLabel($contract->construction_issues ?? null);
-                $contract->debt            = max($diff, 0);
+                $contract->debt            = max($planDueToday - $fact, 0);
                 $contract->plan_fact_diff  = $diff;
+
+                if ($onlyDebtors && $contract->debt <= 0) {
+                    continue;
+                }
+
+                $preparedContracts[] = $contract;
 
                 $grandPlan += $plan;
                 $grandFact += $fact;
+                $grandDebt += (float) $contract->debt;
             }
+
+            $contracts = $preparedContracts;
 
             $availableDistricts = DB::table('apz_contracts')
                 ->selectRaw('DISTINCT district')
@@ -528,7 +542,7 @@ class TransactionController extends Controller
                 ->pluck('district')
                 ->toArray();
 
-            return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
+            return compact('contracts', 'grandPlan', 'grandFact', 'grandDebt', 'availableDistricts');
         });
 
         if ($this->isXlsxExportRequest($request)) {
@@ -550,7 +564,7 @@ class TransactionController extends Controller
 
         $grandPlan = (float) ($allData['grandPlan'] ?? 0);
         $grandFact = (float) ($allData['grandFact'] ?? 0);
-        $grandDebt = max($grandPlan - $grandFact, 0);
+        $grandDebt = (float) ($allData['grandDebt'] ?? max($grandPlan - $grandFact, 0));
         $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : null;
 
         $paginationQuery = [
@@ -570,14 +584,14 @@ class TransactionController extends Controller
             'lastPage' => $lastPage,
             'summaryStats' => [
                 'total_contracts' => $this->formatNumber($total),
-                'grand_plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
-                'grand_debt_mln' => $this->formatNumber($grandDebt / 1000000, 2),
+                'grand_plan_mln' => $this->formatNumber($grandPlan, 2),
+                'grand_debt_mln' => $this->formatNumber($grandDebt, 2),
             ],
             'summaryRow' => [
-                'plan_mln' => $this->formatNumber($grandPlan / 1000000, 2),
-                'fact_mln' => $this->formatNumber($grandFact / 1000000, 2),
-                'debt_mln' => $this->formatNumber($grandDebt / 1000000, 2),
-                'diff_mln' => $this->formatNumber(($grandPlan - $grandFact) / 1000000, 2),
+                'plan_mln' => $this->formatNumber($grandPlan, 2),
+                'fact_mln' => $this->formatNumber($grandFact, 2),
+                'debt_mln' => $this->formatNumber($grandDebt, 2),
+                'diff_mln' => $this->formatNumber(($grandPlan - $grandFact), 2),
                 'diff_class' => $this->completionBandClass($grandPct),
             ],
             'districtOptions' => $this->buildDistrictOptions($allData['availableDistricts'] ?? [], $district, 'Туман: барчаси'),
@@ -610,8 +624,12 @@ class TransactionController extends Controller
 
         $contract = $payload['contract'];
         $plan     = (float) ($contract->contract_value ?? 0);
+        $planDueToday = $this->resolvePlanAmountByToday(
+            $plan,
+            $contract->payment_schedule ?? null
+        );
         $fact     = (float) ($contract->total_paid ?? 0);
-        $diff     = $plan - $fact;
+        $diff     = $planDueToday - $fact;
 
         $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
         $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
@@ -647,9 +665,9 @@ class TransactionController extends Controller
                 'status_class' => $this->statusClass($statusKey, 'st-inprogress'),
                 'issue_label' => $contract->issue_label ?? '—',
                 'issue_class' => str_replace('issue-', 'is-', $this->issueClass($issueKey)),
-                'plan_mln' => $this->formatNumber($plan / 1000000, 2),
-                'fact_mln' => $this->formatNumber($fact / 1000000, 2),
-                'debt_mln' => $this->formatNumber(((float) ($contract->debt ?? 0)) / 1000000, 2),
+                'plan_mln' => $this->formatNumber($plan, 2),
+                'fact_mln' => $this->formatNumber($fact, 2),
+                'debt_mln' => $this->formatNumber(((float) ($contract->debt ?? 0)), 2),
                 'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),
             ],
             'scheduleRows' => $scheduleRows,
@@ -778,7 +796,7 @@ class TransactionController extends Controller
                         $dt = \Carbon\Carbon::parse($date);
                         $schedule[] = [
                             'date' => $dt->format('d.m.Y'),
-                            'amount' => round((float) $amt / 1000000, 4),
+                            'amount' => round((float) $amt, 4),
                             'sort_key' => $dt->format('Y-m-d'),
                         ];
                     } catch (\Exception $e) {}
@@ -979,11 +997,11 @@ class TransactionController extends Controller
                 'status_class' => $this->statusClass($statusKey, 'status-active'),
                 'issue_label' => $contract->issue_label ?? '—',
                 'issue_class' => $this->issueClass($issueKey),
-                'plan_mln' => $plan > 0 ? $this->formatNumber($plan / 1000000, 2) : '—',
+                'plan_mln' => $plan > 0 ? $this->formatNumber($plan, 2) : '—',
                 'payment_terms' => $contract->payment_terms ?: '—',
                 'installments_count' => $contract->installments_count ?: '—',
-                'fact_mln' => $fact > 0 ? $this->formatNumber($fact / 1000000, 2) : '—',
-                'balance_mln' => $plan > 0 ? $this->formatNumber($balance / 1000000, 2) : '—',
+                'fact_mln' => $fact > 0 ? $this->formatNumber($fact, 2) : '—',
+                'balance_mln' => $plan > 0 ? $this->formatNumber($balance, 2) : '—',
                 'balance_class' => $balance <= 0 ? 'txt-good' : 'txt-danger',
                 'progress_show' => $plan > 0,
                 'progress_width' => min((int) round($pct), 100),
@@ -1020,10 +1038,10 @@ class TransactionController extends Controller
                 'status_class' => $this->statusClass($statusKey),
                 'issue_label' => $contract->issue_label ?? '—',
                 'issue_class' => $this->issueClass($issueKey),
-                'plan_mln' => $plan > 0 ? $this->formatNumber($plan / 1000000, 2) : '—',
-                'fact_mln' => $fact > 0 ? $this->formatNumber($fact / 1000000, 2) : '—',
-                'debt_mln' => $debt > 0 ? $this->formatNumber($debt / 1000000, 2) : '0.00',
-                'diff_mln' => $this->formatNumber($diff / 1000000, 2),
+                'plan_mln' => $plan > 0 ? $this->formatNumber($plan, 2) : '—',
+                'fact_mln' => $fact > 0 ? $this->formatNumber($fact, 2) : '—',
+                'debt_mln' => $debt > 0 ? $this->formatNumber($debt, 2) : '0.00',
+                'diff_mln' => $this->formatNumber($diff, 2),
                 'diff_class' => $this->completionBandClass($pct),
                 'detail_url' => route('contracts.show', ['contractId' => $contract->contract_id, 'back' => $backUrl]),
             ];
@@ -1044,7 +1062,7 @@ class TransactionController extends Controller
                 'type' => $payment->type ?: '—',
                 'flow' => $payment->flow ?: '—',
                 'flow_class' => $isIn ? 'flow-in' : 'flow-out',
-                'amount_signed_mln' => ($isIn ? '+' : '-') . $this->formatNumber(((float) ($payment->amount ?? 0)) / 1000000, 4),
+                'amount_signed_mln' => ($isIn ? '+' : '-') . $this->formatNumber(((float) ($payment->amount ?? 0)), 4),
                 'purpose' => $payment->payment_purpose ?: '—',
             ];
         }
@@ -1240,6 +1258,49 @@ class TransactionController extends Controller
         return array_sum($this->parseScheduleByDate($scheduleRaw));
     }
 
+    private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw): float
+    {
+        $scheduleByDate = $this->parseScheduleByDate($scheduleRaw);
+        if (empty($scheduleByDate)) {
+            return max($contractValue, 0.0);
+        }
+
+        return $this->sumScheduleAmountsUpToToday($scheduleByDate);
+    }
+
+    private function sumScheduleAmountsUpToToday(array $scheduleByDate): float
+    {
+        if (empty($scheduleByDate)) {
+            return 0.0;
+        }
+
+        $today = \Carbon\CarbonImmutable::now()->endOfDay();
+        $sum = 0.0;
+
+        foreach ($scheduleByDate as $date => $amount) {
+            $rawDate = trim((string) $date);
+            if ($rawDate === '') {
+                continue;
+            }
+
+            try {
+                $scheduledDate = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $rawDate)->endOfDay();
+            } catch (\Throwable $e) {
+                try {
+                    $scheduledDate = \Carbon\CarbonImmutable::parse($rawDate)->endOfDay();
+                } catch (\Throwable $inner) {
+                    continue;
+                }
+            }
+
+            if ($scheduledDate->lessThanOrEqualTo($today)) {
+                $sum += (float) $amount;
+            }
+        }
+
+        return $sum;
+    }
+
     private function buildGrafikScheduleHeaders(): array
     {
         $headers = [];
@@ -1396,7 +1457,7 @@ class TransactionController extends Controller
                 $formattedDate = (string) $date;
             }
 
-            $parts[] = $formattedDate . ': ' . $this->formatNumber(((float) $amount) / 1000000, 4);
+            $parts[] = $formattedDate . ': ' . $this->formatNumber(((float) $amount), 4);
         }
 
         return implode(' | ', $parts);
@@ -1474,9 +1535,9 @@ class TransactionController extends Controller
             'Шартнома санаси',
             'Ҳолат',
             'Қурилиш ҳолати',
-            'Шартнома қиймати (млн)',
-            'Факт тўлов (млн)',
-            'Қолдиқ (млн)',
+            'Шартнома қиймати (сўм)',
+            'Факт тўлов (сўм)',
+            'Қолдиқ (сўм)',
             'Бажарилиш %',
             'Тўлов шарти',
             'Жадвал сони',
@@ -1498,9 +1559,9 @@ class TransactionController extends Controller
                 $this->formatDate($contract->contract_date ?? null),
                 $contract->status_label ?? $this->contractStatusLabel($contract->contract_status ?? null),
                 $contract->issue_label ?? $this->issueStatusLabel($contract->construction_issues ?? null),
-                round($plan / 1000000, 2),
-                round($fact / 1000000, 2),
-                round($balance / 1000000, 2),
+                round($plan, 2),
+                round($fact, 2),
+                round($balance, 2),
                 $pct,
                 (string) ($contract->payment_terms ?? ''),
                 (int) ($contract->installments_count ?? 0),
@@ -1535,17 +1596,17 @@ class TransactionController extends Controller
             'Шартнома санаси',
             'Ҳолат',
             'Қурилиш ҳолати',
-            'Шартнома қиймати (млн)',
-            'Факт тўлов (млн)',
-            'Қарздорлик (млн)',
-            'План-Факт (млн)',
+            'Шартнома қиймати (сўм)',
+            'Факт тўлов (сўм)',
+            'Қарздорлик (бугунгача, сўм)',
+            'План-Факт (сўм)',
             'Бажарилиш %',
         ]];
 
         foreach ($contracts as $contract) {
             $plan = (float) ($contract->contract_value ?? 0);
             $fact = (float) ($contract->total_paid ?? 0);
-            $debt = (float) ($contract->debt ?? max($plan - $fact, 0));
+            $debt = (float) ($contract->debt ?? max($this->resolvePlanAmountByToday($plan, $contract->payment_schedule ?? null) - $fact, 0));
             $diff = (float) ($contract->plan_fact_diff ?? ($plan - $fact));
             $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
 
@@ -1557,10 +1618,10 @@ class TransactionController extends Controller
                 $this->formatDate($contract->contract_date ?? null),
                 $contract->status_label ?? $this->contractStatusLabel($contract->contract_status ?? null),
                 $contract->issue_label ?? $this->issueStatusLabel($contract->construction_issues ?? null),
-                round($plan / 1000000, 2),
-                round($fact / 1000000, 2),
-                round($debt / 1000000, 2),
-                round($diff / 1000000, 2),
+                round($plan, 2),
+                round($fact, 2),
+                round($debt, 2),
+                round($diff, 2),
                 $pct,
             ];
         }
@@ -1884,11 +1945,11 @@ class TransactionController extends Controller
 
         return [
             ['Кўрсаткич', 'Қиймат', 'Изоҳ'],
-            ['Жами Приход (АПЗ), млн', round($totalIncome / 1000000, 1), number_format($totalRecords) . ' та ёзув'],
+            ['Жами Приход (АПЗ), сўм', round($totalIncome, 1), number_format($totalRecords) . ' та ёзув'],
             ['Жами Шартномалар', $totalContracts, "Фаол: {$activeContracts} · Якун: {$completedContracts} · Бекор: {$cancelledContracts}"],
-            ['Шартнома умумий қиймати, млн', round($totalPlanValue / 1000000, 1), 'режа-жадвал'],
+            ['Шартнома умумий қиймати, сўм', round($totalPlanValue, 1), 'режа-жадвал'],
             ['Туманлар сони', $dashboardDistrictCount, 'Уникал шартномалар: ' . number_format($uniqueContracts)],
-            ['Қарздор шартномалар', $debtorsCount, number_format($debtorsTotal / 1000000, 1, '.', ' ') . ' млн.сўм'],
+            ['Қарздор шартномалар', $debtorsCount, number_format($debtorsTotal, 1, '.', ' ') . ' сўм'],
             ['Умумий бажарилиш, %', $overallPct, 'факт / режа'],
         ];
     }
@@ -2658,10 +2719,10 @@ class TransactionController extends Controller
         $payRows = DB::select("
             SELECT p.district,
                 COUNT(DISTINCT p.contract_id) as contract_count,
-                SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz_payment,
-                SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as penalty,
-                SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as refund,
-                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as total_income
+                SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END) as apz_payment,
+                SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END) as penalty,
+                SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END) as refund,
+                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END) as total_income
             FROM apz_payments p
             WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
             GROUP BY p.district
@@ -2671,8 +2732,8 @@ class TransactionController extends Controller
         // ── 2. Plan per district (deduplicated by contract) ──────────────────
         $planFactRows = DB::select("
             SELECT p.district,
-                SUM(c_plan.plan)/1000000 as plan_value,
-                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                SUM(c_plan.plan) as plan_value,
+                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END) as fact_paid
             FROM apz_payments p
             INNER JOIN (
                 SELECT contract_id, MAX(contract_value) as plan
@@ -2715,10 +2776,10 @@ class TransactionController extends Controller
         // ── 4. Fact payments by year ─ month ─ day ─ district ──────────────
         $factRows = DB::select("
             SELECT p.year, p.month, DATE(p.payment_date) as pay_day, p.district,
-                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as income,
-                SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as apz,
-                SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as pen,
-                SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END)/1000000 as ref,
+                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END) as income,
+                SUM(CASE WHEN p.type='АПЗ тўлови'            AND p.flow='Приход' THEN p.amount ELSE 0 END) as apz,
+                SUM(CASE WHEN p.type='Пеня тўлови'           AND p.flow='Приход' THEN p.amount ELSE 0 END) as pen,
+                SUM(CASE WHEN p.type='АПЗ тўловини қайтариш' AND p.flow='Расход' THEN p.amount ELSE 0 END) as ref,
                 COUNT(DISTINCT p.contract_id) as cnt
             FROM apz_payments p
             WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
@@ -2735,7 +2796,7 @@ class TransactionController extends Controller
         // ── 5. Fact totals by year+district and year+month+district ────────
         $pfYearRows = DB::select("
             SELECT p.year, p.district,
-                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END) as fact_paid
             FROM apz_payments p
             WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
             GROUP BY p.year, p.district
@@ -2747,7 +2808,7 @@ class TransactionController extends Controller
 
         $pfMonthRows = DB::select("
             SELECT p.year, p.month, p.district,
-                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END)/1000000 as fact_paid
+                SUM(CASE WHEN p.flow='Приход' THEN p.amount ELSE 0 END) as fact_paid
             FROM apz_payments p
             WHERE p.district IS NOT NULL AND p.district != '' {$yearCond}
             GROUP BY p.year, p.month, p.district
@@ -2786,7 +2847,7 @@ class TransactionController extends Controller
                 $mm  = $ruMonths[$dt->month];
                 $day = $dt->format('Y-m-d');
                 $planMap[$dist][$yy][$mm][$day] = ($planMap[$dist][$yy][$mm][$day] ?? 0)
-                    + round($amountSom / 1000000, 4);
+                    + round($amountSom, 4);
             }
         }
 

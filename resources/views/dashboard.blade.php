@@ -31,7 +31,7 @@
     </div>
     <div class="stat-card-p sc-green-dk">
         <div class="sc-label">Жами Приход</div>
-        <div class="sc-value">{{ number_format($totalIncome / 1000000, 0, '.', ' ') }} млн</div>
+        <div class="sc-value">{{ number_format($totalIncome, 0, '.', ' ') }}</div>
     </div>
     <div class="stat-card-p sc-orange">
         <div class="sc-label">Шартномалар</div>

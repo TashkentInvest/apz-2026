@@ -90,9 +90,9 @@
     </div>
 
     <div class="stat-grid">
-        <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }} млн</div></div>
-        <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }} млн</div></div>
-        <div class="stat"><div class="lbl">Қарздорлик</div><div class="val" style="color:#e63260;">{{ $contract['debt_mln'] }} млн</div></div>
+        <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Қарздорлик (бугунгача)</div><div class="val" style="color:#e63260;">{{ $contract['debt_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Бажарилиш</div><div class="val">{{ $contract['pct'] }}%</div></div>
     </div>
 
@@ -112,7 +112,7 @@
                 <tr>
                     <th style="width:6%">№</th>
                     <th>Сана</th>
-                    <th>Млн.сўм</th>
+                    <th>Сўм</th>
                 </tr>
             </thead>
             <tbody>
@@ -138,7 +138,7 @@
                     <th>Сана</th>
                     <th>Тур</th>
                     <th>Оқим</th>
-                    <th>Млн.сўм</th>
+                    <th>Сўм</th>
                     <th style="text-align:left">Мақсад</th>
                 </tr>
             </thead>

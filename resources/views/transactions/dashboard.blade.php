@@ -431,7 +431,7 @@
     <a href="{{ route('home') }}" class="stat-card-link">
         <div class="stat-card teal">
             <div class="sc-label">Жами Приход (АПЗ)</div>
-            <div class="sc-value">{{ number_format($totalIncome / 1000000, 1, '.', ' ') }} млн</div>
+            <div class="sc-value">{{ number_format($totalIncome, 1, '.', ' ') }}</div>
             <div class="sc-sub">сўм &middot; {{ number_format($totalRecords) }} та йозув</div>
         </div>
     </a>
@@ -445,7 +445,7 @@
     <a href="{{ route('summary2') }}" class="stat-card-link">
         <div class="stat-card green">
             <div class="sc-label">Шартнома умумий қиймати</div>
-            <div class="sc-value">{{ number_format($totalPlanValue / 1000000, 1, '.', ' ') }} млн</div>
+            <div class="sc-value">{{ number_format($totalPlanValue, 1, '.', ' ') }}</div>
             <div class="sc-sub">сўм (режа-жадвал)</div>
         </div>
     </a>
@@ -460,7 +460,7 @@
         <div class="stat-card red">
             <div class="sc-label">Қарздор шартномалар</div>
             <div class="sc-value">{{ number_format($debtorsCount) }}</div>
-            <div class="sc-sub">{{ number_format($debtorsTotal / 1000000, 1, '.', ' ') }} млн.сўм қарз</div>
+            <div class="sc-sub">{{ number_format($debtorsTotal, 1, '.', ' ') }} сўм қарз</div>
         </div>
     </a>
     <a href="{{ route('summary2') }}" class="stat-card-link">
@@ -542,13 +542,13 @@
                                         {{ number_format($row['contracts_count']) }}
                                     @endif
                                 </td>
-                                <td class="r">{{ number_format($row['contract_value'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['total_paid'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['contract_value'], 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['total_paid'], 2, '.', ' ') }}</td>
                                 <td class="r" style="color:#e63260;">
                                     @if(!empty($row['list_url']))
-                                        <a href="{{ $row['list_url'] }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}</a>
+                                        <a href="{{ $row['list_url'] }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row['debt_total'], 2, '.', ' ') }}</a>
                                     @else
-                                        {{ number_format($row['debt_total'] / 1000000, 2, '.', ' ') }}
+                                        {{ number_format($row['debt_total'], 2, '.', ' ') }}
                                     @endif
                                 </td>
                                 <td class="r">{{ number_format($row['pct'], 1) }}%</td>
@@ -587,9 +587,9 @@
                                 <td class="c">{{ $i + 1 }}</td>
                                 <td><a href="{{ $row->list_url }}" class="mon-link" onclick="event.stopPropagation()">{{ $row->district }}</a></td>
                                 <td class="c"><a href="{{ $row->list_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->contracts_count) }}</a></td>
-                                <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_paid / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#e63260;"><a href="{{ $row->debt_url }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</a></td>
+                                <td class="r">{{ number_format($row->contract_value, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_paid, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;"><a href="{{ $row->debt_url }}" class="mon-link" style="color:#e63260;" onclick="event.stopPropagation()">{{ number_format($row->debt_total, 2, '.', ' ') }}</a></td>
                                 <td class="c"><a href="{{ $row->problem_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->problem_count) }}</a></td>
                                 <td class="c"><a href="{{ $row->no_problem_url }}" class="mon-link" onclick="event.stopPropagation()">{{ number_format($row->no_problem_count) }}</a></td>
                                 <td class="r">{{ number_format($row->pct ?? 0, 1) }}%</td>
@@ -632,7 +632,7 @@
                                         {{ $row->contract_number ?: '—' }}
                                     @endif
                                 </td>
-                                <td class="r" style="color:#e63260;font-weight:700;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;font-weight:700;">{{ number_format($row->debt_total, 2, '.', ' ') }}</td>
                                 <td class="c">
                                     @php
                                         $issueClass = 'unknown';
@@ -670,8 +670,8 @@
                             <tr>
                                 <td class="c">{{ \Carbon\Carbon::parse($row->contract_day)->format('d.m.y') }}</td>
                                 <td class="c">{{ number_format($row->contracts_count) }}</td>
-                                <td class="r">{{ number_format($row->contract_value / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#e63260;">{{ number_format($row->debt_total / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->contract_value, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#e63260;">{{ number_format($row->debt_total, 2, '.', ' ') }}</td>
                             </tr>
                             @endforeach
                             @if(empty($monitoringNewContracts))
@@ -703,12 +703,12 @@
                             @foreach($monitoringMonthlyRows as $row)
                             <tr>
                                 <td>{{ $row['month_label'] }}</td>
-                                <td class="r">{{ number_format($row['plan_total'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['fact_total'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row['apz_payment'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row['penalty_payment'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row['apz_refund'] / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r" style="color:{{ $row['plan_fact_diff'] <= 0 ? '#0a8a2e' : '#e63260' }};">{{ number_format($row['plan_fact_diff'] / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['plan_total'], 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row['fact_total'], 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['apz_payment'], 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['penalty_payment'], 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row['apz_refund'], 2, '.', ' ') }}</td>
+                                <td class="r" style="color:{{ $row['plan_fact_diff'] <= 0 ? '#0a8a2e' : '#e63260' }};">{{ number_format($row['plan_fact_diff'], 2, '.', ' ') }}</td>
                             </tr>
                             @endforeach
                             @if(empty($monitoringMonthlyRows))
@@ -738,10 +738,10 @@
                             @foreach($monitoringDailyRows as $row)
                             <tr>
                                 <td class="c">{{ \Carbon\Carbon::parse($row->pay_day)->format('d.m.y') }}</td>
-                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_income / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row->apz_payment / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row->apz_refund / 1000000, 2, '.', ' ') }}</td>
-                                <td class="r">{{ number_format($row->penalty_payment / 1000000, 2, '.', ' ') }}</td>
+                                <td class="r" style="color:#0a8a2e;">{{ number_format($row->total_income, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->apz_payment, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->apz_refund, 2, '.', ' ') }}</td>
+                                <td class="r">{{ number_format($row->penalty_payment, 2, '.', ' ') }}</td>
                             </tr>
                             @endforeach
                             @if(empty($monitoringDailyRows))
@@ -766,7 +766,7 @@
 <div class="tbl-block">
     <div class="tbl-block-header">
         <span class="title">Туман &rarr; Йил &rarr; Ой &rarr; Кун (дрилл-даун)</span>
-        <span class="sub">млн.сўм &middot; + босиб кенгайтиринг</span>
+        <span class="sub">сўм &middot; + босиб кенгайтиринг</span>
         <div style="display:flex;gap:8px;align-items:center;" class="no-print">
             <button onclick="expandAll()" class="print-btn" style="background:#6e788b;padding:6px 14px;font-size:.75rem;">+ Барчасини очиш</button>
             <button onclick="collapseAll()" class="print-btn" style="background:#6e788b;padding:6px 14px;font-size:.75rem;">− Барчасини юмиш</button>
@@ -777,7 +777,7 @@
         <thead>
             <tr class="hdr-group">
                 <th rowspan="2" class="g-pay" style="text-align:left;min-width:160px;">Туман / Йил / Ой</th>
-                <th colspan="5" class="g-pay">АПЗ Тўловлари (факт, млн.сўм)</th>
+                <th colspan="5" class="g-pay">АПЗ Тўловлари (факт, сўм)</th>
                 <th colspan="5" class="g-pf">План — Факт</th>
             </tr>
             <tr class="hdr-cols">
@@ -1044,7 +1044,7 @@
                             <th>Шартнома</th>
                             <th>Инвестор</th>
                             <th>Тур</th>
-                            <th>Млн.сўм</th>
+                            <th>Сўм</th>
                             <th>Мақсад</th>
                             <th></th>
                         </tr>
@@ -1077,14 +1077,14 @@
             <div class="cm-section-title">Тўлов жадвали</div>
             <div style="overflow-x:auto;">
                 <table class="cm-table">
-                    <thead><tr><th>#</th><th>Сана</th><th>Млн.сўм</th></tr></thead>
+                    <thead><tr><th>#</th><th>Сана</th><th>Сўм</th></tr></thead>
                     <tbody id="cm-sched-body"><tr><td colspan="3" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
                 </table>
             </div>
             <div class="cm-section-title">Амалга тушумлар</div>
             <div style="overflow-x:auto;">
                 <table class="cm-table">
-                    <thead><tr><th>#</th><th>Сана</th><th>Тур</th><th>Оқим</th><th>Млн.сўм</th><th>Мақсад</th></tr></thead>
+                    <thead><tr><th>#</th><th>Сана</th><th>Тур</th><th>Оқим</th><th>Сўм</th><th>Мақсад</th></tr></thead>
                     <tbody id="cm-pay-body"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
                 </table>
             </div>
@@ -1149,7 +1149,7 @@ function renderModalRows(data) {
             <td style="font-size:.75rem;color:#018c87;">${r.contract_number || r.contract_id || '—'}</td>
             <td style="font-size:.76rem;">${r.investor_name || r.company_name || '—'}</td>
             <td style="font-size:.75rem;">${r.type || '—'}</td>
-            <td class="r ${r.flow === 'Приход' ? 'flow-in' : 'flow-out'}">${r.flow === 'Приход' ? '+' : '-'}${Number(r.amount/1000000).toFixed(2)}</td>
+            <td class="r ${r.flow === 'Приход' ? 'flow-in' : 'flow-out'}">${r.flow === 'Приход' ? '+' : '-'}${Number(r.amount).toLocaleString('ru')}</td>
             <td style="font-size:.72rem;color:#888;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.payment_purpose || '—'}</td>
             <td style="text-align:center;">${btnHtml}</td>
         </tr>`;
@@ -1185,14 +1185,14 @@ function fetchContract() {
         cmState.lastPage = data.last_page;
         // meta
         const c = data.contract;
-        const fmtM = v => v > 0 ? (v/1000000).toFixed(4)+' млн' : '—';
+        const fmtAmount = v => v > 0 ? Number(v).toLocaleString('ru') : '—';
         const metaItems = [
             ['Шартнома рақами', c.contract_number||'—'],
             ['Туман', c.district||'—'],
             ['Инвестор', c.investor_name||'—'],
             ['Шартнома санаси', c.contract_date ? c.contract_date.slice(0,10).split('-').reverse().join('.') : '—'],
-            ['Шартнома қиймати', fmtM(c.contract_value)],
-            ['Жами тўланган', fmtM(c.total_paid)],
+            ['Шартнома қиймати', fmtAmount(c.contract_value)],
+            ['Жами тўланган', fmtAmount(c.total_paid)],
             ['Тўловлар сони', c.payment_count||'0'],
             ['Тўлов шарти', c.payment_terms||'—'],
             ['Ҳолат', c.contract_status||'—'],
@@ -1202,7 +1202,7 @@ function fetchContract() {
         // schedule
         const sBody = document.getElementById('cm-sched-body');
         sBody.innerHTML = data.schedule && data.schedule.length
-            ? data.schedule.map((s,i) => `<tr><td style="text-align:center;color:#aaa;font-size:.72rem;">${i+1}</td><td>${s.date}</td><td class="r">${Number(s.amount).toFixed(4)}</td></tr>`).join('')
+            ? data.schedule.map((s,i) => `<tr><td style="text-align:center;color:#aaa;font-size:.72rem;">${i+1}</td><td>${s.date}</td><td class="r">${Number(s.amount).toLocaleString('ru')}</td></tr>`).join('')
             : '<tr><td colspan="3" style="text-align:center;color:#aaa;padding:10px;">Жадвал йўқ</td></tr>';
         // payments
         const pBody = document.getElementById('cm-pay-body');
@@ -1212,7 +1212,7 @@ function fetchContract() {
                 <td>${p.payment_date||'—'}</td>
                 <td style="font-size:.75rem;">${p.type||'—'}</td>
                 <td class="${isIn?'flow-in':'flow-out'}">${p.flow||'—'}</td>
-                <td class="r ${isIn?'flow-in':'flow-out'}">${isIn?'+':'-'}${(p.amount/1000000).toFixed(4)}</td>
+                <td class="r ${isIn?'flow-in':'flow-out'}">${isIn?'+':'-'}${Number(p.amount).toLocaleString('ru')}</td>
                 <td style="font-size:.72rem;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.payment_purpose||''}">${p.payment_purpose||'—'}</td>
             </tr>`; }).join('')
             : '<tr><td colspan="6" style="text-align:center;color:#aaa;padding:10px;">Тўловлар йўқ</td></tr>';

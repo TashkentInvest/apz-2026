@@ -88,11 +88,11 @@ class WarmReportCache extends Command
         Cache::remember('summary_report_data', 3600, function () {
             $rows = DB::select("
                 SELECT district,
-                    SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)'   AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_10_safe_city,
-                    SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_35_auto,
-                    SUM(CASE WHEN type='Жарима 5% (1 йил ичида)'        AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_5_within_year,
-                    SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)'   AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_10_after_year,
-                    SUM(CASE WHEN type='Реклама учун тўлов 20%'         AND flow='Приход' THEN amount ELSE 0 END)/1000000 as ad_20
+                    SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)'   AND flow='Приход' THEN amount ELSE 0 END) as fine_10_safe_city,
+                    SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END) as fine_35_auto,
+                    SUM(CASE WHEN type='Жарима 5% (1 йил ичида)'        AND flow='Приход' THEN amount ELSE 0 END) as fine_5_within_year,
+                    SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)'   AND flow='Приход' THEN amount ELSE 0 END) as fine_10_after_year,
+                    SUM(CASE WHEN type='Реклама учун тўлов 20%'         AND flow='Приход' THEN amount ELSE 0 END) as ad_20
                 FROM transactions WHERE district IS NOT NULL GROUP BY district ORDER BY district
             ");
             $totals = ['grand_total'=>0,'fines_total'=>0,'fine_10_safe_city'=>0,'fine_35_auto'=>0,'fine_5_within_year'=>0,'fine_10_after_year'=>0,'ad_20'=>0];
@@ -103,7 +103,7 @@ class WarmReportCache extends Command
                 $summaryData[]=['district'=>$r->district,'grand_total'=>$gt,'fines_total'=>$ft,'fine_10_safe_city'=>$f10,'fine_35_auto'=>$f35,'fine_5_within_year'=>$f5,'fine_10_after_year'=>$f10a,'ad_20'=>$ad];
                 $totals['grand_total']+=$gt; $totals['fines_total']+=$ft; $totals['fine_10_safe_city']+=$f10; $totals['fine_35_auto']+=$f35; $totals['fine_5_within_year']+=$f5; $totals['fine_10_after_year']+=$f10a; $totals['ad_20']+=$ad;
             }
-            $balanceHistory = DB::select("SELECT DATE_FORMAT(date,'%Y-%m') as month_key,DATE_FORMAT(MAX(date),'%d.%m.%Y') as date_formatted,SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END)/1000000 as total,SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_10_safe_city,SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_35_auto,SUM(CASE WHEN type='Жарима 5% (1 йил ичида)' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_5_within_year,SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as fine_10_after_year,SUM(CASE WHEN type='Реклама учун тўлов 20%' AND flow='Приход' THEN amount ELSE 0 END)/1000000 as ad_20 FROM transactions WHERE date >= DATE_SUB(CURDATE(),INTERVAL 3 MONTH) GROUP BY month_key ORDER BY month_key DESC LIMIT 3");
+            $balanceHistory = DB::select("SELECT DATE_FORMAT(date,'%Y-%m') as month_key,DATE_FORMAT(MAX(date),'%d.%m.%Y') as date_formatted,SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total,SUM(CASE WHEN type='Жарима 10% (хавфсиз шаҳар)' AND flow='Приход' THEN amount ELSE 0 END) as fine_10_safe_city,SUM(CASE WHEN type='Жарима 35% (автоматлаштирилган)' AND flow='Приход' THEN amount ELSE 0 END) as fine_35_auto,SUM(CASE WHEN type='Жарима 5% (1 йил ичида)' AND flow='Приход' THEN amount ELSE 0 END) as fine_5_within_year,SUM(CASE WHEN type='Жарима 10% (1 йилдан кейин)' AND flow='Приход' THEN amount ELSE 0 END) as fine_10_after_year,SUM(CASE WHEN type='Реклама учун тўлов 20%' AND flow='Приход' THEN amount ELSE 0 END) as ad_20 FROM transactions WHERE date >= DATE_SUB(CURDATE(),INTERVAL 3 MONTH) GROUP BY month_key ORDER BY month_key DESC LIMIT 3");
             return compact('summaryData','totals','balanceHistory');
         });
         $this->line('  ✓ summary_report_data');
@@ -114,7 +114,7 @@ class WarmReportCache extends Command
             $dbYears = DB::table('transactions')->selectRaw('DISTINCT YEAR(date) as y')->whereNotNull('date')->orderBy('y')->pluck('y')->map(fn($y)=>(int)$y)->toArray();
             $cy=(int)now()->year; if(!in_array($cy,$dbYears)){$dbYears[]=$cy; sort($dbYears);}
             $years=$dbYears;
-            $rawMonthly=DB::select("SELECT YEAR(date) as yr,MONTH(date) as mn,flow,SUM(amount)/1000000 as total FROM transactions WHERE flow IN ('Приход','Расход') AND YEAR(date) IN (".implode(',',$years).") GROUP BY yr,mn,flow");
+            $rawMonthly=DB::select("SELECT YEAR(date) as yr,MONTH(date) as mn,flow,SUM(amount) as total FROM transactions WHERE flow IN ('Приход','Расход') AND YEAR(date) IN (".implode(',',$years).") GROUP BY yr,mn,flow");
             $lookup=[];
             foreach($rawMonthly as $r) $lookup["{$r->yr}:{$r->mn}:{$r->flow}"]=(float)$r->total;
             $yearlyData=[];
@@ -126,7 +126,7 @@ class WarmReportCache extends Command
                     $yearlyData[$year]['credit_total']+=$c; $yearlyData[$year]['debit_total']+=$d;
                 }
             }
-            $dr=DB::select("SELECT district,SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END)/1000000 as credit,SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END)/1000000 as debit FROM transactions WHERE district IS NOT NULL GROUP BY district ORDER BY district");
+            $dr=DB::select("SELECT district,SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as credit,SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as debit FROM transactions WHERE district IS NOT NULL GROUP BY district ORDER BY district");
             $districtSummary=[];
             foreach($dr as $r){$c=(float)$r->credit;$d=(float)$r->debit;$districtSummary[$r->district]=['credit'=>$c,'debit'=>$d,'balance'=>$c-$d];}
             return compact('yearlyData','districtSummary','years','months');

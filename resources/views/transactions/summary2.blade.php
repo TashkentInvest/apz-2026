@@ -143,13 +143,13 @@
         <div class="col-md-3">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['grand_plan_mln'] }}</div>
-                <div class="lbl">Жами план (млн.сўм)</div>
+                <div class="lbl">Жами шартнома қиймати (сўм)</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="grand-stat">
                 <div class="val txt-good">{{ $summaryStats['grand_fact_mln'] }}</div>
-                <div class="lbl">Жами факт (млн.сўм)</div>
+                <div class="lbl">Жами факт (сўм)</div>
             </div>
         </div>
         <div class="col-md-3">
@@ -305,7 +305,7 @@
             <div class="cm-section-title">Тўлов жадвали</div>
             <div style="overflow-x:auto;">
                 <table class="cm-table" id="cm-sched-table">
-                    <thead><tr><th>#</th><th>Сана</th><th>Млн.сўм</th></tr></thead>
+                    <thead><tr><th>#</th><th>Сана</th><th>Сўм</th></tr></thead>
                     <tbody id="cm-sched-body"><tr><td colspan="3" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
                 </table>
             </div>
@@ -313,7 +313,7 @@
             <div class="cm-section-title">Амалга тушумлар</div>
             <div style="overflow-x:auto;">
                 <table class="cm-table">
-                    <thead><tr><th>#</th><th>Сана</th><th>Тур</th><th>Оқим</th><th>Млн.сўм</th><th>Мақсад</th></tr></thead>
+                    <thead><tr><th>#</th><th>Сана</th><th>Тур</th><th>Оқим</th><th>Сўм</th><th>Мақсад</th></tr></thead>
                     <tbody id="cm-pay-body"><tr><td colspan="6" style="text-align:center;color:#aaa;padding:12px;">Юкланмоқда...</td></tr></tbody>
                 </table>
             </div>
@@ -378,15 +378,14 @@ function fetchContract() {
 }
 
 function renderContractMeta(c) {
-    const fmt = v => v ? Number(v).toLocaleString('ru') : '—';
-    const fmtM = v => v > 0 ? (v / 1000000).toFixed(4) + ' млн' : '—';
+    const fmtAmount = v => v > 0 ? Number(v).toLocaleString('ru') : '—';
     const meta = [
         { lbl: 'Шартнома рақами',  val: c.contract_number || '—' },
         { lbl: 'Туман',           val: c.district || '—' },
         { lbl: 'Инвестор',        val: c.investor_name || '—' },
         { lbl: 'Шартнома санаси', val: c.contract_date ? c.contract_date.slice(0,10).split('-').reverse().join('.') : '—' },
-        { lbl: 'Шартнома қиймати (млн)', val: fmtM(c.contract_value) },
-        { lbl: 'Жами тўланган (млн)',    val: fmtM(c.total_paid) },
+        { lbl: 'Шартнома қиймати', val: fmtAmount(c.contract_value) },
+        { lbl: 'Жами тўланган',    val: fmtAmount(c.total_paid) },
         { lbl: 'Тўловлар сони',   val: c.payment_count || '0' },
         { lbl: 'Тўлов шарти',     val: c.payment_terms || '—' },
         { lbl: 'Бўлиб тўлаш',     val: c.installments_count ? c.installments_count + ' та' : '—' },
@@ -406,7 +405,7 @@ function renderSchedule(schedule) {
     tbody.innerHTML = schedule.map((s, i) =>
         `<tr><td style="text-align:center;color:#aaa;font-size:.72rem;">${i+1}</td>
              <td>${s.date}</td>
-             <td class="r">${Number(s.amount).toFixed(4)}</td></tr>`
+             <td class="r">${Number(s.amount).toLocaleString('ru')}</td></tr>`
     ).join('');
 }
 
@@ -418,13 +417,13 @@ function renderPayments(payments, page, perPage) {
     }
     tbody.innerHTML = payments.map((p, i) => {
         const isIn = p.flow === 'Приход';
-        const amtM = (Number(p.amount) / 1000000).toFixed(4);
+        const amt = Number(p.amount).toLocaleString('ru');
         return `<tr>
             <td style="text-align:center;color:#aaa;font-size:.72rem;">${(page-1)*perPage + i + 1}</td>
             <td>${p.payment_date || '—'}</td>
             <td style="font-size:.75rem;">${p.type || '—'}</td>
             <td class="${isIn ? 'flow-in' : 'flow-out'}">${p.flow || '—'}</td>
-            <td class="r ${isIn ? 'flow-in' : 'flow-out'}">${isIn ? '+' : '-'}${amtM}</td>
+            <td class="r ${isIn ? 'flow-in' : 'flow-out'}">${isIn ? '+' : '-'}${amt}</td>
             <td style="font-size:.72rem;color:#888;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.payment_purpose || ''}">${p.payment_purpose || '—'}</td>
         </tr>`;
     }).join('');
