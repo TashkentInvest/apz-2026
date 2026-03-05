@@ -507,19 +507,20 @@ class TransactionController extends Controller
             $preparedContracts = [];
 
             foreach ($contracts as $contract) {
-                $plan = (float) ($contract->contract_value ?? 0);
-                $planDueToday = $this->resolvePlanAmountByToday(
-                    $plan,
+                $metrics = $this->calculateContractFinancials(
+                    $contract->contract_value ?? 0,
+                    $contract->total_paid ?? 0,
                     $contract->payment_schedule ?? null
                 );
-                $fact = (float) ($contract->total_paid ?? 0);
-                $diff = $plan - $fact;
+                $plan = $metrics['plan'];
+                $fact = $metrics['fact'];
+                $diff = $metrics['diff'];
 
                 $contract->status_key      = $this->normalizeContractStatus($contract->contract_status ?? null);
                 $contract->status_label    = $this->contractStatusLabel($contract->contract_status ?? null);
                 $contract->issue_key       = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
                 $contract->issue_label     = $this->issueStatusLabel($contract->construction_issues ?? null);
-                $contract->debt            = max($planDueToday - $fact, 0);
+                $contract->debt            = $metrics['debt'];
                 $contract->plan_fact_diff  = $diff;
 
                 if ($onlyDebtors && $contract->debt <= 0) {
@@ -623,20 +624,20 @@ class TransactionController extends Controller
         }
 
         $contract = $payload['contract'];
-        $plan     = (float) ($contract->contract_value ?? 0);
-        $planDueToday = $this->resolvePlanAmountByToday(
-            $plan,
+        $metrics  = $this->calculateContractFinancials(
+            $contract->contract_value ?? 0,
+            $contract->total_paid ?? 0,
             $contract->payment_schedule ?? null
         );
-        $fact     = (float) ($contract->total_paid ?? 0);
-        $diff     = $planDueToday - $fact;
+        $plan     = $metrics['plan'];
+        $fact     = $metrics['fact'];
 
         $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
         $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
         $contract->issue_key    = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
         $contract->issue_label  = $this->issueStatusLabel($contract->construction_issues ?? null);
-        $contract->debt         = max($diff, 0);
-        $contract->pct          = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
+        $contract->debt         = $metrics['debt'];
+        $contract->pct          = $metrics['pct'];
 
         $backUrl = $request->filled('back') ? (string) $request->back : null;
 
@@ -1253,9 +1254,21 @@ class TransactionController extends Controller
         ]);
     }
 
-    private function sumScheduleAmounts($scheduleRaw): float
+    private function calculateContractFinancials($contractValue, $paidAmount, $scheduleRaw = null): array
     {
-        return array_sum($this->parseScheduleByDate($scheduleRaw));
+        $plan = max((float) $contractValue, 0.0);
+        $fact = max((float) $paidAmount, 0.0);
+        $planDueToday = $this->resolvePlanAmountByToday($plan, $scheduleRaw);
+        $diff = $plan - $fact;
+
+        return [
+            'plan' => $plan,
+            'fact' => $fact,
+            'plan_due_today' => $planDueToday,
+            'debt' => max($planDueToday - $fact, 0.0),
+            'diff' => $diff,
+            'pct' => $plan > 0 ? round(($fact / $plan) * 100, 1) : 0.0,
+        ];
     }
 
     private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw): float
@@ -1265,40 +1278,48 @@ class TransactionController extends Controller
             return max($contractValue, 0.0);
         }
 
-        return $this->sumScheduleAmountsUpToToday($scheduleByDate);
-    }
-
-    private function sumScheduleAmountsUpToToday(array $scheduleByDate): float
-    {
-        if (empty($scheduleByDate)) {
-            return 0.0;
-        }
-
         $today = \Carbon\CarbonImmutable::now()->endOfDay();
-        $sum = 0.0;
+        $planDueToday = 0.0;
+        $latestDueDate = null;
 
         foreach ($scheduleByDate as $date => $amount) {
-            $rawDate = trim((string) $date);
-            if ($rawDate === '') {
+            $normalizedDate = trim((string) $date);
+            if ($normalizedDate === '') {
                 continue;
             }
 
             try {
-                $scheduledDate = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $rawDate)->endOfDay();
+                $dueDate = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $normalizedDate)->endOfDay();
             } catch (\Throwable $e) {
                 try {
-                    $scheduledDate = \Carbon\CarbonImmutable::parse($rawDate)->endOfDay();
+                    $dueDate = \Carbon\CarbonImmutable::parse($normalizedDate)->endOfDay();
                 } catch (\Throwable $inner) {
                     continue;
                 }
             }
 
-            if ($scheduledDate->lessThanOrEqualTo($today)) {
-                $sum += (float) $amount;
+            if ($latestDueDate === null || $dueDate->greaterThan($latestDueDate)) {
+                $latestDueDate = $dueDate;
+            }
+
+            if ($dueDate->lessThanOrEqualTo($today)) {
+                $planDueToday += (float) $amount;
             }
         }
 
-        return $sum;
+        if ($latestDueDate === null) {
+            return max($contractValue, 0.0);
+        }
+
+        if ($latestDueDate->lessThanOrEqualTo($today) && $contractValue > $planDueToday) {
+            $planDueToday = $contractValue;
+        }
+
+        if ($planDueToday <= 0.0) {
+            return 0.0;
+        }
+
+        return $contractValue > 0 ? min($planDueToday, $contractValue) : $planDueToday;
     }
 
     private function buildGrafikScheduleHeaders(): array
@@ -1604,11 +1625,16 @@ class TransactionController extends Controller
         ]];
 
         foreach ($contracts as $contract) {
-            $plan = (float) ($contract->contract_value ?? 0);
-            $fact = (float) ($contract->total_paid ?? 0);
-            $debt = (float) ($contract->debt ?? max($this->resolvePlanAmountByToday($plan, $contract->payment_schedule ?? null) - $fact, 0));
-            $diff = (float) ($contract->plan_fact_diff ?? ($plan - $fact));
-            $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : 0;
+            $metrics = $this->calculateContractFinancials(
+                $contract->contract_value ?? 0,
+                $contract->total_paid ?? 0,
+                $contract->payment_schedule ?? null
+            );
+            $plan = $metrics['plan'];
+            $fact = $metrics['fact'];
+            $debt = (float) ($contract->debt ?? $metrics['debt']);
+            $diff = (float) ($contract->plan_fact_diff ?? $metrics['diff']);
+            $pct = $metrics['pct'];
 
             $rows[] = [
                 (int) ($contract->contract_id ?? 0),
