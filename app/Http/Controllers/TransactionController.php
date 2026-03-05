@@ -1060,102 +1060,321 @@ class TransactionController extends Controller
 
     private function exportUnifiedSystemXlsx(Request $request, string $whereSQL, array $params)
     {
-        $contractColumns = array_map(
-            static fn ($row) => (string) $row->Field,
-            DB::select('SHOW COLUMNS FROM apz_contracts')
+        $grafikHeaders = $this->buildGrafikScheduleHeaders();
+
+        $rows = DB::select(
+            "SELECT p.id, p.payment_date, p.contract_id, p.inn,
+                    p.debit_amount, p.credit_amount, p.payment_purpose,
+                    p.flow, p.month, p.amount, p.district, p.type, p.year,
+                    p.company_name, c.investor_name,
+                    c.contract_status, c.payment_schedule
+             FROM apz_payments p
+             LEFT JOIN apz_contracts c ON c.contract_id = p.contract_id
+             {$whereSQL}
+             ORDER BY p.id DESC",
+            $params
         );
 
-        $paymentColumns = array_map(
-            static fn ($row) => (string) $row->Field,
-            DB::select('SHOW COLUMNS FROM apz_payments')
-        );
-
-        $contractSelect = implode(', ', array_map(
-            static fn ($column) => "c.`{$column}` as `contract_{$column}`",
-            $contractColumns
-        ));
-
-        $paymentSelect = implode(', ', array_map(
-            static fn ($column) => "p.`{$column}` as `payment_{$column}`",
-            $paymentColumns
-        ));
-
-        $query = "SELECT {$contractSelect}, {$paymentSelect},
-                        COALESCE(agg.income_total, 0) as agg_income_total,
-                        COALESCE(agg.expense_total, 0) as agg_expense_total,
-                        COALESCE(agg.payment_count, 0) as agg_payment_count,
-                        agg.last_payment_date as agg_last_payment_date,
-                        GREATEST(COALESCE(c.contract_value, 0) - COALESCE(agg.income_total, 0), 0) as agg_debt_total
-                  FROM apz_contracts c
-                  LEFT JOIN (
-                      SELECT contract_id,
-                             SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as income_total,
-                             SUM(CASE WHEN flow='Расход' THEN amount ELSE 0 END) as expense_total,
-                             COUNT(*) as payment_count,
-                             MAX(payment_date) as last_payment_date
-                      FROM apz_payments
-                      GROUP BY contract_id
-                  ) agg ON agg.contract_id = c.contract_id
-                  LEFT JOIN apz_payments p ON p.contract_id = c.contract_id
-                  {$whereSQL}
-                  ORDER BY c.contract_id, p.payment_date DESC, p.id DESC";
-
-        $rows = DB::select($query, $params);
-
-        $header = array_merge(
-            ['contract_status_label', 'contract_issue_label', 'contract_schedule_flat_mln', 'agg_fact_income_mln', 'agg_fact_expense_mln', 'agg_debt_mln', 'agg_payment_count', 'agg_last_payment_date'],
-            array_map(static fn ($column) => 'contract_' . $column, $contractColumns),
-            array_map(static fn ($column) => 'payment_' . $column, $paymentColumns)
-        );
-
-        $sheetRows = [
-            ['Filter', 'Value'],
-            ['district', (string) ($request->district ?: 'all')],
-            ['year', (string) ($request->year ?: 'all')],
-            ['month', (string) ($request->month ?: 'all')],
-            ['type', (string) ($request->type ?: 'all')],
-            ['date_from', (string) ($request->date_from ?: '—')],
-            ['date_to', (string) ($request->date_to ?: '—')],
-            ['search', (string) ($request->search ?: '—')],
-            ['exported_at', now()->format('d.m.Y H:i:s')],
-            [],
-            $header,
-        ];
+        $tenants = [];
 
         foreach ($rows as $row) {
-            $statusRaw = $row->contract_contract_status ?? null;
-            $issueRaw = $row->contract_construction_issues ?? null;
-            $scheduleRaw = $row->contract_payment_schedule ?? null;
+            $tenantInn = trim((string) ($row->inn ?? ''));
+            $tenantCompany = trim((string) ($row->company_name ?? ''));
+            $tenantInvestor = trim((string) ($row->investor_name ?? ''));
+            $tenantDistrict = trim((string) ($row->district ?? ''));
 
-            $base = [
-                $this->contractStatusLabel($statusRaw),
-                $this->issueStatusLabel($issueRaw),
-                $this->flattenScheduleForExport($scheduleRaw),
-                round(((float) ($row->agg_income_total ?? 0)) / 1000000, 4),
-                round(((float) ($row->agg_expense_total ?? 0)) / 1000000, 4),
-                round(((float) ($row->agg_debt_total ?? 0)) / 1000000, 4),
-                (int) ($row->agg_payment_count ?? 0),
-                $this->formatDate($row->agg_last_payment_date ?? null),
-            ];
-
-            $contractValues = [];
-            foreach ($contractColumns as $column) {
-                $contractValues[] = $row->{'contract_' . $column} ?? '';
+            $tenantKey = $tenantDistrict . '|' . $tenantInn . '|' . $tenantCompany . '|' . $tenantInvestor;
+            if ($tenantKey === '|||') {
+                $tenantKey = 'district:' . $tenantDistrict . '|contract:' . (string) ($row->contract_id ?? '') . '|payment:' . (string) ($row->id ?? '');
             }
 
-            $paymentValues = [];
-            foreach ($paymentColumns as $column) {
-                $paymentValues[] = $row->{'payment_' . $column} ?? '';
+            if (!isset($tenants[$tenantKey])) {
+                $tenants[$tenantKey] = [
+                    'payment_date' => $this->formatDate($row->payment_date ?? null),
+                    'contract_id' => (int) ($row->contract_id ?? 0),
+                    'inn' => $tenantInn,
+                    'debit_amount' => 0.0,
+                    'credit_amount' => 0.0,
+                    'payment_purpose' => (string) ($row->payment_purpose ?? ''),
+                    'flow' => (string) ($row->flow ?? ''),
+                    'month' => (string) ($row->month ?? ''),
+                    'amount' => 0.0,
+                    'district' => (string) ($row->district ?? ''),
+                    'type' => (string) ($row->type ?? ''),
+                    'year' => (string) ($row->year ?? ''),
+                    'company_name' => $tenantCompany !== '' ? $tenantCompany : $tenantInvestor,
+                    'schedule_total' => 0.0,
+                    'fact_payment_total' => 0.0,
+                    'schedule_by_date' => array_fill_keys($grafikHeaders, 0.0),
+                    'fact_by_date' => [],
+                    'status_labels' => [],
+                    'seen_contracts' => [],
+                ];
             }
 
-            $sheetRows[] = array_merge($base, $contractValues, $paymentValues);
+            $tenants[$tenantKey]['debit_amount'] += (float) ($row->debit_amount ?? 0);
+            $tenants[$tenantKey]['credit_amount'] += (float) ($row->credit_amount ?? 0);
+            $tenants[$tenantKey]['amount'] += (float) ($row->amount ?? 0);
+
+            if (($row->flow ?? '') === 'Приход') {
+                $tenants[$tenantKey]['fact_payment_total'] += (float) ($row->amount ?? 0);
+                $factDate = $this->formatDateToGrafikHeader($row->payment_date ?? null);
+                if ($factDate !== null) {
+                    $tenants[$tenantKey]['fact_by_date'][$factDate] =
+                        (float) ($tenants[$tenantKey]['fact_by_date'][$factDate] ?? 0)
+                        + (float) ($row->amount ?? 0);
+                }
+            }
+
+            $contractId = (int) ($row->contract_id ?? 0);
+            if ($contractId > 0 && !isset($tenants[$tenantKey]['seen_contracts'][$contractId])) {
+                $tenants[$tenantKey]['seen_contracts'][$contractId] = true;
+
+                $scheduleByDate = $this->parseScheduleByDate($row->payment_schedule ?? null);
+                foreach ($scheduleByDate as $scheduleDate => $scheduleAmount) {
+                    if (!array_key_exists($scheduleDate, $tenants[$tenantKey]['schedule_by_date'])) {
+                        continue;
+                    }
+
+                    $tenants[$tenantKey]['schedule_by_date'][$scheduleDate] += $scheduleAmount;
+                    $tenants[$tenantKey]['schedule_total'] += $scheduleAmount;
+                }
+
+                $statusLabel = $this->contractStatusLabel($row->contract_status ?? null);
+                if ($statusLabel !== '') {
+                    $tenants[$tenantKey]['status_labels'][$statusLabel] = true;
+                }
+            }
+
+            if ($tenants[$tenantKey]['payment_purpose'] === '' && !empty($row->payment_purpose)) {
+                $tenants[$tenantKey]['payment_purpose'] = (string) $row->payment_purpose;
+            }
         }
 
-        $fileName = 'system_all_in_one_' . now()->format('Ymd_His') . '.xlsx';
+        $sheetRows = [[
+            'Дата',
+            'ID',
+            'ИНН',
+            ' Сумма дебет ',
+            ' Сумма кредит ',
+            'Назначение платежа',
+            'Поток',
+            'Месяц',
+            ' Cумма ',
+            'Район',
+            'Тип',
+            'ГОД',
+            'Корхона номи',
+            'Reja-jadval (план)',
+            'Факт тўлов (Приход)',
+            'Шартнома ҳолати',
+            'График (детал)',
+            'Факт тўловлар (детал)',
+            ...$grafikHeaders,
+        ]];
+
+        $tenantRows = array_values($tenants);
+        usort($tenantRows, static function (array $left, array $right): int {
+            $districtCmp = strcmp((string) ($left['district'] ?? ''), (string) ($right['district'] ?? ''));
+            if ($districtCmp !== 0) {
+                return $districtCmp;
+            }
+
+            $companyCmp = strcmp((string) ($left['company_name'] ?? ''), (string) ($right['company_name'] ?? ''));
+            if ($companyCmp !== 0) {
+                return $companyCmp;
+            }
+
+            return strcmp((string) ($left['inn'] ?? ''), (string) ($right['inn'] ?? ''));
+        });
+
+        foreach ($tenantRows as $tenant) {
+            $statusLabels = isset($tenant['status_labels']) && is_array($tenant['status_labels'])
+                ? implode(', ', array_keys($tenant['status_labels']))
+                : '';
+
+            $scheduleByDate = (isset($tenant['schedule_by_date']) && is_array($tenant['schedule_by_date']))
+                ? $tenant['schedule_by_date']
+                : [];
+
+            $factByDate = (isset($tenant['fact_by_date']) && is_array($tenant['fact_by_date']))
+                ? $tenant['fact_by_date']
+                : [];
+
+            $grafikCells = [];
+            foreach ($grafikHeaders as $headerDate) {
+                $grafikCells[] = round((float) ($scheduleByDate[$headerDate] ?? 0), 2);
+            }
+
+            $sheetRows[] = array_merge([
+                (string) ($tenant['payment_date'] ?? ''),
+                (int) ($tenant['contract_id'] ?? 0),
+                (string) ($tenant['inn'] ?? ''),
+                round((float) ($tenant['debit_amount'] ?? 0), 2),
+                round((float) ($tenant['credit_amount'] ?? 0), 2),
+                (string) ($tenant['payment_purpose'] ?? ''),
+                (string) ($tenant['flow'] ?? ''),
+                (string) ($tenant['month'] ?? ''),
+                round((float) ($tenant['amount'] ?? 0), 2),
+                (string) ($tenant['district'] ?? ''),
+                (string) ($tenant['type'] ?? ''),
+                (string) ($tenant['year'] ?? ''),
+                (string) ($tenant['company_name'] ?? ''),
+                round((float) ($tenant['schedule_total'] ?? 0), 2),
+                round((float) ($tenant['fact_payment_total'] ?? 0), 2),
+                $statusLabels !== '' ? $statusLabels : '—',
+                $this->formatAmountsByDate($scheduleByDate),
+                $this->formatAmountsByDate($factByDate),
+            ], $grafikCells);
+        }
+
+        $fileName = 'apz_tenants_distinct_' . now()->format('Ymd_His') . '.xlsx';
 
         return app(SimpleXlsxExportService::class)->download($fileName, [
-            ['name' => 'All_In_One', 'rows' => $sheetRows],
+            ['name' => 'Tenants', 'rows' => $sheetRows],
         ]);
+    }
+
+    private function sumScheduleAmounts($scheduleRaw): float
+    {
+        return array_sum($this->parseScheduleByDate($scheduleRaw));
+    }
+
+    private function buildGrafikScheduleHeaders(): array
+    {
+        $headers = [];
+        $cursor = \Carbon\CarbonImmutable::create(2024, 4, 1)->startOfMonth();
+        $end = \Carbon\CarbonImmutable::create(2030, 12, 1)->startOfMonth();
+
+        while ($cursor->lessThanOrEqualTo($end)) {
+            $headers[] = $cursor->endOfMonth()->format('d.m.Y');
+            $cursor = $cursor->addMonth()->startOfMonth();
+        }
+
+        return $headers;
+    }
+
+    private function parseScheduleByDate($scheduleRaw): array
+    {
+        if (is_string($scheduleRaw)) {
+            $decoded = json_decode($scheduleRaw, true);
+            if (is_array($decoded)) {
+                $scheduleRaw = $decoded;
+            }
+        }
+
+        if (!is_array($scheduleRaw) || empty($scheduleRaw)) {
+            return [];
+        }
+
+        $result = [];
+
+        foreach ($scheduleRaw as $dateKey => $amountRaw) {
+            $normalizedDate = $this->normalizeGrafikDateKey((string) $dateKey);
+            if ($normalizedDate === null) {
+                continue;
+            }
+
+            $amount = $this->toNumericValue($amountRaw);
+            if ($amount == 0.0) {
+                continue;
+            }
+
+            $result[$normalizedDate] = (float) ($result[$normalizedDate] ?? 0) + $amount;
+        }
+
+        return $result;
+    }
+
+    private function normalizeGrafikDateKey(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        $formats = ['d.m.Y', 'j.n.Y', 'Y-m-d', 'n/j/Y', 'm/d/Y'];
+        foreach ($formats as $format) {
+            try {
+                $date = \Carbon\CarbonImmutable::createFromFormat($format, $value);
+                if ($date !== false) {
+                    return $date->format('d.m.Y');
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        try {
+            return \Carbon\CarbonImmutable::parse($value)->format('d.m.Y');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function formatDateToGrafikHeader($value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+
+        try {
+            return \Carbon\CarbonImmutable::parse($raw)->format('d.m.Y');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function formatAmountsByDate(array $amountsByDate): string
+    {
+        if (empty($amountsByDate)) {
+            return '—';
+        }
+
+        $rows = [];
+        foreach ($amountsByDate as $date => $amount) {
+            $numeric = round((float) $amount, 2);
+            if ($numeric == 0.0) {
+                continue;
+            }
+
+            $rows[] = ['date' => $date, 'amount' => $numeric];
+        }
+
+        if (empty($rows)) {
+            return '—';
+        }
+
+        usort($rows, static function (array $left, array $right): int {
+            $leftTs = strtotime($left['date']);
+            $rightTs = strtotime($right['date']);
+            return $leftTs <=> $rightTs;
+        });
+
+        $parts = [];
+        foreach ($rows as $row) {
+            $parts[] = $row['date'] . ': ' . $this->formatNumber((float) $row['amount'], 2);
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    private function toNumericValue($value): float
+    {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+
+        $raw = trim((string) $value);
+        if ($raw === '' || $raw === '-') {
+            return 0.0;
+        }
+
+        $normalized = preg_replace('/[\s\x{00A0}\x{2007}]/u', '', $raw);
+        $normalized = preg_replace('/,(?=\d{3})/', '', $normalized);
+
+        return is_numeric($normalized) ? (float) $normalized : 0.0;
     }
 
     private function flattenScheduleForExport($scheduleRaw): string

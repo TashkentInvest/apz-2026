@@ -94,3 +94,17 @@ php -d memory_limit=512M artisan db:seed --class=TransactionsSeeder
 php artisan migrate
 php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
 ```
+
+## EXPORT CSV (dataset-apz)
+
+```
+# Export both files to storage/dataset-apz/
+php artisan apz:export-datasets
+
+# Export with filters
+php artisan apz:export-datasets --district="Olmazor" --month="Апрель" --year=2024
+```
+
+Generated files:
+- `storage/dataset-apz/fakt-apz.csv`
+- `storage/dataset-apz/grafik_apz.csv`

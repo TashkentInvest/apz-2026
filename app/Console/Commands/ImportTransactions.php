@@ -10,14 +10,9 @@ class ImportTransactions extends Command
     protected $signature   = 'apz:import-payments {--fresh : Truncate table before importing}';
     protected $description = 'Import APZ payments from fakt-apz.csv into apz_payments table';
 
-    // fakt-apz.csv comma-separated columns (24 total):
-    // [0]  date        [1]  ID          [2]  INN
-    // [3]  debit       [4]  credit      [5]  payment_purpose
-    // [6]  date(dup)   [7]  ID(dup)     [8]  INN(dup)
-    // [9]  debit(dup)  [10] credit(dup) [11] payment_purpose(dup)
-    // [12] flow        [13] month       [14] amount
-    // [15] district    [16] type        [17] year
-    // [18] company_name (and repeated columns 19-23)
+    // fakt-apz.csv supports both:
+    // - legacy 24-column structure
+    // - compact 13-column structure
 
     public function handle(): int
     {
@@ -43,8 +38,40 @@ class ImportTransactions extends Command
             return self::FAILURE;
         }
 
-        // Skip header row
-        fgetcsv($handle, 0, ',');
+        $headerLine = fgets($handle);
+        if ($headerLine === false) {
+            fclose($handle);
+            $this->error('Cannot read CSV header line.');
+            return self::FAILURE;
+        }
+
+        $delimiter = $this->detectDelimiter($headerLine);
+        rewind($handle);
+
+        $header = fgetcsv($handle, 0, $delimiter);
+        if ($header === false) {
+            fclose($handle);
+            $this->error('Cannot read CSV header.');
+            return self::FAILURE;
+        }
+
+        $headerCount = count($header);
+        $isCompactFormat = $headerCount >= 13 && $headerCount < 19;
+
+        $dateIndex = 0;
+        $idIndex = 1;
+        $innIndex = 2;
+        $debitIndex = 3;
+        $creditIndex = 4;
+        $purposeIndex = 5;
+        $flowIndex = $isCompactFormat ? 6 : 12;
+        $monthIndex = $isCompactFormat ? 7 : 13;
+        $amountIndex = $isCompactFormat ? 8 : 14;
+        $districtIndex = $isCompactFormat ? 9 : 15;
+        $typeIndex = $isCompactFormat ? 10 : 16;
+        $yearIndex = $isCompactFormat ? 11 : 17;
+        $companyIndex = $isCompactFormat ? 12 : 18;
+        $minColumns = $isCompactFormat ? 13 : 19;
 
         $now       = date('Y-m-d H:i:s');
         $batch     = [];
@@ -56,21 +83,23 @@ class ImportTransactions extends Command
         $bar->setFormat(' %current% records [%bar%] %elapsed:6s% %memory:6s%');
         $bar->start();
 
-        while (($row = fgetcsv($handle, 0, ',')) !== false) {
-            if (count($row) < 17) {
+        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
+            if (count($row) < $minColumns) {
                 $skipped++;
                 continue;
             }
 
-            $dateStr = trim($row[0] ?? '');
-            // Skip rows that are clearly not data (header repeats, empty first col)
-            if (!preg_match('/^20\d{2}/', $dateStr)) {
+            $dateStr = trim($row[$dateIndex] ?? '');
+            $parsedDate = $this->parseDate($dateStr);
+
+            // Skip rows that are clearly not data (header repeats, empty/invalid dates)
+            if ($parsedDate === null) {
                 $skipped++;
                 continue;
             }
 
-            $flow = trim($row[12] ?? '');
-            $type = trim($row[16] ?? '');
+            $flow = trim($row[$flowIndex] ?? '');
+            $type = trim($row[$typeIndex] ?? '');
 
             // Skip header-repeat rows
             if ($flow === 'Поток' || $type === 'Тип') {
@@ -79,19 +108,19 @@ class ImportTransactions extends Command
             }
 
             $batch[] = [
-                'payment_date'    => $this->parseDate($dateStr),
-                'contract_id'     => (int) trim($row[1] ?? 0),
-                'inn'             => mb_substr(trim($row[2] ?? ''), 0, 50),
-                'debit_amount'    => $this->parseAmount($row[3] ?? '0'),
-                'credit_amount'   => $this->parseAmount($row[4] ?? '0'),
-                'payment_purpose' => mb_substr(trim($row[5] ?? ''), 0, 1000),
+                'payment_date'    => $parsedDate,
+                'contract_id'     => (int) trim($row[$idIndex] ?? 0),
+                'inn'             => mb_substr(trim($row[$innIndex] ?? ''), 0, 50),
+                'debit_amount'    => $this->parseAmount($row[$debitIndex] ?? '0'),
+                'credit_amount'   => $this->parseAmount($row[$creditIndex] ?? '0'),
+                'payment_purpose' => mb_substr(trim($row[$purposeIndex] ?? ''), 0, 1000),
                 'flow'            => mb_substr($flow, 0, 20),
-                'month'           => mb_substr(trim($row[13] ?? ''), 0, 50),
-                'amount'          => $this->parseAmount($row[14] ?? '0'),
-                'district'        => mb_substr(trim($row[15] ?? ''), 0, 100),
+                'month'           => mb_substr(trim($row[$monthIndex] ?? ''), 0, 50),
+                'amount'          => $this->parseAmount($row[$amountIndex] ?? '0'),
+                'district'        => mb_substr(trim($row[$districtIndex] ?? ''), 0, 100),
                 'type'            => mb_substr($type, 0, 100),
-                'year'            => (int) trim($row[17] ?? 0),
-                'company_name'    => mb_substr(trim($row[18] ?? ''), 0, 255),
+                'year'            => (int) trim($row[$yearIndex] ?? 0),
+                'company_name'    => mb_substr(trim($row[$companyIndex] ?? ''), 0, 255),
                 'created_at'      => $now,
                 'updated_at'      => $now,
             ];
@@ -118,6 +147,14 @@ class ImportTransactions extends Command
         $this->info("✓ Imported {$count} APZ payments. Skipped: {$skipped}.");
 
         return self::SUCCESS;
+    }
+
+    private function detectDelimiter(string $headerLine): string
+    {
+        $commaCount = substr_count($headerLine, ',');
+        $semicolonCount = substr_count($headerLine, ';');
+
+        return $semicolonCount > $commaCount ? ';' : ',';
     }
 
     private function parseDate(string $s): ?string
@@ -147,6 +184,12 @@ class ImportTransactions extends Command
         $s = preg_replace('/[\s\x{00A0}\x{2007}]/u', '', $s);
         // Remove thousand separators (commas before 3 digits pattern)
         $s = preg_replace('/,(?=\d{3})/', '', $s);
+
+        // Handle decimal comma (e.g. 500000000,00)
+        if (str_contains($s, ',') && !str_contains($s, '.')) {
+            $s = str_replace(',', '.', $s);
+        }
+
         return (float) $s;
     }
 }
