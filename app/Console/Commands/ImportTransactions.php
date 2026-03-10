@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 class ImportTransactions extends Command
 {
     protected $signature   = 'apz:import-payments {--fresh : Truncate table before importing}';
-    protected $description = 'Import APZ payments from fakt_apz.csv into apz_payments table';
+    protected $description = 'Import APZ payments from fakt_apz.csv into apz_payments table and sync base contracts';
 
     // fakt_apz.csv supports both:
     // - legacy 24-column structure
@@ -142,11 +142,82 @@ class ImportTransactions extends Command
         fclose($handle);
         gc_collect_cycles();
 
+        $createdContracts = $this->syncBaseContractsFromPayments($now);
+
         $bar->finish();
         $this->newLine();
         $this->info("✓ Imported {$count} APZ payments. Skipped: {$skipped}.");
+        $this->info("✓ Created {$createdContracts} base contracts from payments.");
 
         return self::SUCCESS;
+    }
+
+    private function syncBaseContractsFromPayments(string $now): int
+    {
+        $existingContractIds = DB::table('apz_contracts')
+            ->whereNotNull('contract_id')
+            ->pluck('contract_id')
+            ->map(static fn($id) => (int) $id)
+            ->toArray();
+
+        $existingMap = array_fill_keys($existingContractIds, true);
+
+        $contractStats = DB::table('apz_payments as p')
+            ->selectRaw("p.contract_id,
+                         MAX(NULLIF(TRIM(p.district), '')) as district,
+                         MAX(NULLIF(TRIM(p.inn), '')) as inn,
+                         MAX(NULLIF(TRIM(p.company_name), '')) as company_name,
+                         MIN(p.payment_date) as first_payment_date")
+            ->whereNotNull('p.contract_id')
+            ->where('p.contract_id', '>', 0)
+            ->groupBy('p.contract_id')
+            ->get();
+
+        $batch = [];
+        $created = 0;
+
+        foreach ($contractStats as $row) {
+            $contractId = (int) ($row->contract_id ?? 0);
+            if ($contractId <= 0 || isset($existingMap[$contractId])) {
+                continue;
+            }
+
+            $investorName = trim((string) ($row->company_name ?? ''));
+            if ($investorName === '') {
+                $investorName = '—';
+            }
+
+            $batch[] = [
+                'contract_id' => $contractId,
+                'district' => trim((string) ($row->district ?? '')) ?: null,
+                'investor_name' => mb_substr($investorName, 0, 255),
+                'inn' => mb_substr(trim((string) ($row->inn ?? '')), 0, 50),
+                'contract_number' => (string) $contractId,
+                'contract_date' => $row->first_payment_date ?: null,
+                'contract_status' => 'Амалдаги',
+                'contract_value' => 0,
+                'payment_terms' => null,
+                'installments_count' => null,
+                // Schedule is managed in system UI, not imported from grafik file.
+                'payment_schedule' => null,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            $existingMap[$contractId] = true;
+            $created++;
+
+            if (count($batch) >= 300) {
+                DB::table('apz_contracts')->insert($batch);
+                $batch = [];
+            }
+        }
+
+        if (!empty($batch)) {
+            DB::table('apz_contracts')->insert($batch);
+        }
+
+        return $created;
     }
 
     private function detectDelimiter(string $headerLine): string

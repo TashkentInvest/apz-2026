@@ -93,6 +93,15 @@ php -d memory_limit=512M artisan db:seed --class=TransactionsSeeder
 ```
 php artisan migrate
 php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
+
+# Payments-only seeding (keeps existing contracts/schedules; creates only missing contracts from fakt_apz.csv)
+php artisan db:seed
+
+# Explicit class (PowerShell-safe)
+php artisan db:seed --class='Database\Seeders\DatabaseSeeder'
+
+# Or run importer directly
+php artisan apz:import-payments --fresh
 ```
 
 ## EXPORT CSV (dataset-apz)
@@ -108,3 +117,9 @@ php artisan apz:export-datasets --district="Olmazor" --month="Апрель" --ye
 Generated files:
 - `storage/dataset-apz/fakt-apz.csv`
 - `storage/dataset-apz/grafik_apz.csv`
+
+## fact payment seeding
+```
+ php artisan db:seed --class='Database\Seeders\DatabaseSeeder'
+```
+    
