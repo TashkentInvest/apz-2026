@@ -456,21 +456,24 @@ class TransactionController extends Controller
         $status      = $this->normalizeRequestedStatus($statusInput, 'in_progress');
         $issueInput  = $request->filled('issue') ? (string) $request->issue : 'all';
         $issue       = $this->normalizeRequestedIssue($issueInput);
+        $debtTypeInput = $request->filled('debt_type') ? (string) $request->debt_type : 'all';
+        $debtType      = $this->normalizeDebtTypeFilter($debtTypeInput);
         $district    = $request->filled('district') ? trim((string) $request->district) : null;
         $searchTerm  = $request->filled('search') ? trim((string) $request->search) : null;
         $onlyDebtors = (int) $request->get('debtors', 0) === 1;
         $page        = max(1, (int) $request->get('page', 1));
         $perPage     = 25;
 
-        $cacheKey = 'apz_debts_v2_' . md5(
+        $cacheKey = 'apz_debts_v3_' . md5(
             $status . '|' .
             $issue . '|' .
+            $debtType . '|' .
             ($district ?? 'all') . '|' .
             mb_strtolower($searchTerm ?? '') . '|' .
             ($onlyDebtors ? 'debtors' : 'all')
         );
 
-        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $district, $searchTerm, $onlyDebtors) {
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $debtType, $district, $searchTerm, $onlyDebtors) {
             $where = [];
             $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
             if ($statusWhere) $where[] = $statusWhere;
@@ -528,7 +531,17 @@ class TransactionController extends Controller
                 $contract->unoverdue_debt  = $metrics['unoverdue_debt'];
                 $contract->plan_fact_diff  = $diff;
 
-                if ($onlyDebtors && $contract->debt <= 0) {
+                $totalDebt = (float) $contract->overdue_debt + (float) $contract->unoverdue_debt;
+
+                if ($debtType === 'overdue' && (float) $contract->overdue_debt <= 0.0) {
+                    continue;
+                }
+
+                if ($debtType === 'unoverdue' && (float) $contract->unoverdue_debt <= 0.0) {
+                    continue;
+                }
+
+                if ($onlyDebtors && $totalDebt <= 0.0) {
                     continue;
                 }
 
@@ -559,6 +572,7 @@ class TransactionController extends Controller
                 $issue,
                 $district,
                 $searchTerm,
+                $debtType,
                 $onlyDebtors
             );
         }
@@ -584,6 +598,7 @@ class TransactionController extends Controller
             'status' => $status,
             'district' => $district,
             'issue' => $issue !== 'all' ? $issue : null,
+            'debt_type' => $debtType !== 'all' ? $debtType : null,
             'debtors' => $onlyDebtors ? 1 : null,
             'search' => $searchTerm,
         ];
@@ -616,13 +631,15 @@ class TransactionController extends Controller
             'districtOptions' => $this->buildDistrictOptions($allData['availableDistricts'] ?? [], $district, 'Туман: барчаси'),
             'statusOptions' => $this->buildStatusOptions($status),
             'issueOptions' => $this->buildIssueOptions($issue, 'Муаммо ҳолати: барчаси'),
+            'debtTypeOptions' => $this->buildDebtTypeOptions($debtType),
             'debtorsOptions' => $this->buildDebtorOptions($onlyDebtors),
             'selectedStatus' => $status,
             'selectedIssue' => $issue,
+            'selectedDebtType' => $debtType,
             'selectedDistrict' => $district,
             'searchTerm' => $searchTerm,
             'onlyDebtors' => $onlyDebtors,
-            'showResetFilters' => ($status !== 'in_progress' || $issue !== 'all' || $district !== null || !empty($searchTerm) || $onlyDebtors),
+            'showResetFilters' => ($status !== 'in_progress' || $issue !== 'all' || $debtType !== 'all' || $district !== null || !empty($searchTerm) || $onlyDebtors),
             'pagination' => $this->buildPagination('debts', $paginationQuery, $page, $lastPage),
         ]);
     }
@@ -1116,6 +1133,33 @@ class TransactionController extends Controller
             ['value' => '0', 'label' => 'Қарз: барчаси', 'selected' => !$onlyDebtors],
             ['value' => '1', 'label' => 'Фақат қарздорлар', 'selected' => $onlyDebtors],
         ];
+    }
+
+    private function normalizeDebtTypeFilter(?string $debtType): string
+    {
+        $debtType = strtolower(trim((string) $debtType));
+        if ($debtType === '') {
+            return 'all';
+        }
+
+        return in_array($debtType, ['all', 'overdue', 'unoverdue'], true)
+            ? $debtType
+            : 'all';
+    }
+
+    private function buildDebtTypeOptions(string $selected): array
+    {
+        $items = [
+            ['value' => 'all', 'label' => 'Қарз тури: барчаси'],
+            ['value' => 'overdue', 'label' => 'Муддати ўтган қарздорлик'],
+            ['value' => 'unoverdue', 'label' => 'Муддати ўтмаган қарздорлик'],
+        ];
+
+        foreach ($items as &$item) {
+            $item['selected'] = $item['value'] === $selected;
+        }
+
+        return $items;
     }
 
     private function buildDistrictOptions(array $districts, ?string $selected, string $allLabel = 'Туман: барчаси'): array
@@ -1903,7 +1947,7 @@ class TransactionController extends Controller
         ]);
     }
 
-    private function exportDebtsXlsx(array $contracts, string $status, string $issue, ?string $district, ?string $searchTerm, bool $onlyDebtors)
+    private function exportDebtsXlsx(array $contracts, string $status, string $issue, ?string $district, ?string $searchTerm, string $debtType, bool $onlyDebtors)
     {
         $rows = [[
             'ID',
@@ -1953,11 +1997,18 @@ class TransactionController extends Controller
             ];
         }
 
+        $debtTypeLabel = match ($debtType) {
+            'overdue' => 'Муддати ўтган қарздорлик',
+            'unoverdue' => 'Муддати ўтмаган қарздорлик',
+            default => 'Барчаси',
+        };
+
         $filterRows = [
             ['Фильтр', 'Қиймат'],
             ['Туман', $district ?: 'Барчаси'],
             ['Ҳолат', $status],
             ['Муаммо', $issue],
+            ['Қарз тури', $debtTypeLabel],
             ['Қарздорлар', $onlyDebtors ? 'Фақат қарздорлар' : 'Барчаси'],
             ['Қидирув', $searchTerm ?: '—'],
             ['Экспорт санаси', now()->format('d.m.Y H:i')],

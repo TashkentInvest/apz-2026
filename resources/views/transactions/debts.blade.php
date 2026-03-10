@@ -150,8 +150,8 @@
                 <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
             @endforeach
         </select>
-        <select name="debtors" class="form-select form-select-sm" style="width:200px;" onchange="this.form.submit()">
-            @foreach($debtorsOptions as $option)
+        <select name="debt_type" class="form-select form-select-sm" style="width:240px;" onchange="this.form.submit()">
+            @foreach($debtTypeOptions as $option)
                 <option value="{{ $option['value'] }}" {{ $option['selected'] ? 'selected' : '' }}>{{ $option['label'] }}</option>
             @endforeach
         </select>
