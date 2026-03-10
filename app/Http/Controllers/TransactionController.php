@@ -1961,23 +1961,49 @@ class TransactionController extends Controller
 
     private function exportDebtsXlsx(array $contracts, string $status, string $issue, ?string $district, ?string $searchTerm, string $debtType, bool $onlyDebtors)
     {
-        $rows = [[
-            'ID',
-            'Компания',
+        $debtTypeLabel = match ($debtType) {
+            'overdue' => 'Муддати ўтган қарздорлик',
+            'unoverdue' => 'Муддати ўтмаган қарздорлик',
+            default => 'Барчаси',
+        };
+
+        $reportTitle = $onlyDebtors
+            ? 'Шартномалар бўйича қарздорлар ҳисоботи'
+            : 'Шартномалар бўйича қарздорлик ҳисоботи';
+
+        $tableHeader = [
+            '№',
+            'Компания номи',
             'Туман',
             'Шартнома рақами',
             'Шартнома санаси',
             'Ҳолат',
             'Қурилиш ҳолати',
-            'Шартнома қиймати (сўм)',
-            'Факт тўлов (сўм)',
-            'Муддати ўтган қарздорлик (сўм)',
-            'Муддати келмаган қарздорлик (сўм)',
-            'План-Факт (сўм)',
-            'Бажарилиш %',
-        ]];
+            'Шартнома қиймати',
+            'Факт тўлаган',
+            'Муддати ўтган қарздорлик',
+            'Муддати келмаган қарздорлик',
+            'План-Факт фарқи',
+        ];
 
-        foreach ($contracts as $contract) {
+        $rows = [
+            [$reportTitle],
+            ['Экспорт санаси: ' . now()->format('d.m.Y H:i')],
+            ['Қарз тури: ' . $debtTypeLabel],
+            [],
+            $tableHeader,
+        ];
+
+        $totalContracts = 0;
+        $sumPlan = 0.0;
+        $sumFact = 0.0;
+        $sumDebt = 0.0;
+        $sumUnoverdueDebt = 0.0;
+        $sumDiff = 0.0;
+
+        $dataRows = [];
+
+        foreach ($contracts as $index => $contract) {
             $metrics = $this->calculateContractFinancials(
                 $contract->contract_value ?? 0,
                 $contract->total_paid ?? 0,
@@ -1990,30 +2016,48 @@ class TransactionController extends Controller
             $debt = (float) ($contract->overdue_debt ?? $contract->debt ?? $metrics['overdue_debt'] ?? $metrics['debt']);
             $unoverdueDebt = (float) ($contract->unoverdue_debt ?? $metrics['unoverdue_debt'] ?? 0.0);
             $diff = (float) ($contract->plan_fact_diff ?? $metrics['diff']);
-            $pct = $metrics['pct'];
 
-            $rows[] = [
-                (int) ($contract->contract_id ?? 0),
+            $dataRows[] = [
+                $index + 1,
                 (string) ($contract->investor_name ?? ''),
                 (string) ($contract->district ?? ''),
                 (string) ($contract->contract_number ?? ''),
                 $this->formatDate($contract->contract_date ?? null),
                 $contract->status_label ?? $this->contractStatusLabel($contract->contract_status ?? null),
                 $contract->issue_label ?? $this->issueStatusLabel($contract->construction_issues ?? null),
-                round($plan, 2),
-                round($fact, 2),
-                round($debt, 2),
-                round($unoverdueDebt, 2),
-                round($diff, 2),
-                $pct,
+                $this->formatNumber($plan, 2),
+                $this->formatNumber($fact, 2),
+                $this->formatNumber($debt, 2),
+                $this->formatNumber($unoverdueDebt, 2),
+                $this->formatNumber($diff, 2),
             ];
+
+            $totalContracts++;
+            $sumPlan += (float) $plan;
+            $sumFact += (float) $fact;
+            $sumDebt += (float) $debt;
+            $sumUnoverdueDebt += (float) $unoverdueDebt;
+            $sumDiff += (float) $diff;
         }
 
-        $debtTypeLabel = match ($debtType) {
-            'overdue' => 'Муддати ўтган қарздорлик',
-            'unoverdue' => 'Муддати ўтмаган қарздорлик',
-            default => 'Барчаси',
-        };
+        $rows[] = [
+            '—',
+            'ЖАМИ (' . $totalContracts . ' шартнома)',
+            '',
+            '',
+            '',
+            '',
+            '',
+            $this->formatNumber($sumPlan, 2),
+            $this->formatNumber($sumFact, 2),
+            $this->formatNumber($sumDebt, 2),
+            $this->formatNumber($sumUnoverdueDebt, 2),
+            $this->formatNumber($sumDiff, 2),
+        ];
+
+        foreach ($dataRows as $dataRow) {
+            $rows[] = $dataRow;
+        }
 
         $filterRows = [
             ['Фильтр', 'Қиймат'],
@@ -2026,11 +2070,13 @@ class TransactionController extends Controller
             ['Экспорт санаси', now()->format('d.m.Y H:i')],
         ];
 
-        $fileName = 'debts_' . now()->format('Ymd_His') . '.xlsx';
+        $filePrefix = $onlyDebtors ? 'debtors' : 'debts';
+        $sheetName = $onlyDebtors ? 'Debtors' : 'Debts';
+        $fileName = $filePrefix . '_' . now()->format('Ymd_His') . '.xlsx';
 
         return app(SimpleXlsxExportService::class)->download($fileName, [
+            ['name' => $sheetName, 'rows' => $rows],
             ['name' => 'Filters', 'rows' => $filterRows],
-            ['name' => 'Debts', 'rows' => $rows],
         ]);
     }
 

@@ -627,7 +627,11 @@
             <div class="platon-page-head">
                 <div class="platon-page-title">@yield('title', 'Кабинет')</div>
                 @if(request()->routeIs('home') || request()->routeIs('dashboard') || request()->routeIs('summary2') || request()->routeIs('debts'))
-                    <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx']) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
+                    @if(request()->routeIs('debts'))
+                        <a href="{{ route('debts', ['status' => 'all', 'issue' => 'all', 'debt_type' => 'all', 'debtors' => 0, 'export' => 'xlsx']) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
+                    @else
+                        <a href="{{ request()->fullUrlWithQuery(['export' => 'xlsx']) }}" class="platon-btn platon-btn-outline platon-btn-sm">Export XLSX</a>
+                    @endif
                 @endif
             </div>
 
