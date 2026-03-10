@@ -464,7 +464,7 @@ class TransactionController extends Controller
         $page        = max(1, (int) $request->get('page', 1));
         $perPage     = 25;
 
-        $cacheKey = 'apz_debts_v3_' . md5(
+        $cacheKey = 'apz_debts_v4_' . md5(
             $status . '|' .
             $issue . '|' .
             $debtType . '|' .
@@ -526,20 +526,32 @@ class TransactionController extends Controller
                 $contract->status_label    = $this->contractStatusLabel($contract->contract_status ?? null);
                 $contract->issue_key       = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
                 $contract->issue_label     = $this->issueStatusLabel($contract->construction_issues ?? null);
-                $contract->debt            = $metrics['debt'];
-                $contract->overdue_debt    = $metrics['overdue_debt'];
-                $contract->unoverdue_debt  = $metrics['unoverdue_debt'];
+
+                $overdueDebt = (float) ($metrics['overdue_debt'] ?? 0.0);
+                $unoverdueDebt = (float) ($metrics['unoverdue_debt'] ?? 0.0);
+
+                if ($debtType === 'overdue' && $overdueDebt <= 0.0) {
+                    continue;
+                }
+
+                if ($debtType === 'unoverdue' && $unoverdueDebt <= 0.0) {
+                    continue;
+                }
+
+                if ($debtType === 'overdue') {
+                    $unoverdueDebt = 0.0;
+                }
+
+                if ($debtType === 'unoverdue') {
+                    $overdueDebt = 0.0;
+                }
+
+                $contract->debt            = $overdueDebt;
+                $contract->overdue_debt    = $overdueDebt;
+                $contract->unoverdue_debt  = $unoverdueDebt;
                 $contract->plan_fact_diff  = $diff;
 
-                $totalDebt = (float) $contract->overdue_debt + (float) $contract->unoverdue_debt;
-
-                if ($debtType === 'overdue' && (float) $contract->overdue_debt <= 0.0) {
-                    continue;
-                }
-
-                if ($debtType === 'unoverdue' && (float) $contract->unoverdue_debt <= 0.0) {
-                    continue;
-                }
+                $totalDebt = $overdueDebt + $unoverdueDebt;
 
                 if ($onlyDebtors && $totalDebt <= 0.0) {
                     continue;
@@ -549,8 +561,8 @@ class TransactionController extends Controller
 
                 $grandPlan += $plan;
                 $grandFact += $fact;
-                $grandDebt += (float) $contract->debt;
-                $grandUnoverdueDebt += (float) $contract->unoverdue_debt;
+                $grandDebt += $overdueDebt;
+                $grandUnoverdueDebt += $unoverdueDebt;
             }
 
             $contracts = $preparedContracts;
@@ -585,9 +597,9 @@ class TransactionController extends Controller
 
         $grandPlan = (float) ($allData['grandPlan'] ?? 0);
         $grandFact = (float) ($allData['grandFact'] ?? 0);
-        $grandDebt = (float) ($allData['grandDebt'] ?? max($grandPlan - $grandFact, 0));
-        $grandUnoverdueDebt = (float) ($allData['grandUnoverdueDebt'] ?? max(($grandPlan - $grandFact) - $grandDebt, 0));
-        $grandTotalDebt = max($grandPlan - $grandFact, 0);
+        $grandDebt = (float) ($allData['grandDebt'] ?? 0);
+        $grandUnoverdueDebt = (float) ($allData['grandUnoverdueDebt'] ?? 0);
+        $grandTotalDebt = max($grandDebt + $grandUnoverdueDebt, 0);
         $overallPctValue = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : 0.0;
         $overallPctClass = $overallPctValue >= 100
             ? 'txt-good'
