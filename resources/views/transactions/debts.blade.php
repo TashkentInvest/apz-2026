@@ -16,6 +16,11 @@
     .grand-stat { text-align:center; padding:16px 20px; border-radius:10px; border:1px solid #e0e0e0; }
     .grand-stat .val { font-size:1.35rem; font-weight:800; color:#018c87; }
     .grand-stat .lbl { font-size:.72rem; color:#6e788b; margin-top:4px; text-transform:uppercase; letter-spacing:.05em; }
+    .grand-stat.debt-card {
+        border-color:#efb6b6;
+        background:linear-gradient(180deg, #fff6f6 0%, #fff 100%);
+    }
+    .grand-stat.debt-card .lbl { color:#9b3a3a; }
 
     .contracts-table { width:100%; border-collapse:collapse; font-size:.82rem; }
     .contracts-table thead th {
@@ -50,6 +55,9 @@
     .diff-muted  { color:#7f8a9b; font-weight:600; }
     .txt-good { color:#0a8a2e; }
     .txt-danger { color:#e63260; }
+    .txt-pending { color:#d47000; }
+    .debt-red-strong { color:#c62828; }
+    .debt-red-soft { color:#d84343; }
     .link-clean { color:#018c87; text-decoration:none; }
 
     .pg-wrap { display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:16px; }
@@ -79,22 +87,49 @@
     </div>
 
     <div class="row g-3 mb-4 no-print">
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['total_contracts'] }}</div>
                 <div class="lbl">Жами шартномалар</div>
             </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['grand_plan_mln'] }}</div>
                 <div class="lbl">Жами шартнома қиймати (сўм)</div>
             </div>
         </div>
+        <div class="col-md-3">
+            <div class="grand-stat debt-card">
+                <div class="val debt-red-strong">{{ $summaryStats['grand_debt_mln'] }}</div>
+                <div class="lbl">Муддати ўтган қарздорлик (сўм)</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="grand-stat debt-card">
+                <div class="val debt-red-soft">{{ $summaryStats['grand_unoverdue_debt_mln'] }}</div>
+                <div class="lbl">Муддати келмаган қарздорлик (сўм)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4 no-print">
         <div class="col-md-4">
             <div class="grand-stat">
-                <div class="val txt-danger">{{ $summaryStats['grand_debt_mln'] }}</div>
-                <div class="lbl">Жами қарздорлик (бугунгача, сўм)</div>
+                <div class="val txt-good">{{ $summaryStats['grand_fact_mln'] }}</div>
+                <div class="lbl">Жами факт тўлов (сўм)</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="grand-stat debt-card">
+                <div class="val debt-red-strong">{{ $summaryStats['grand_total_debt_mln'] }}</div>
+                <div class="lbl">Жами қарздорлик (умумий, сўм)</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="grand-stat">
+                <div class="val {{ $summaryStats['overall_pct_class'] }}">{{ $summaryStats['overall_pct'] }}</div>
+                <div class="lbl">Бажарилиш фоизи</div>
             </div>
         </div>
     </div>
@@ -142,7 +177,8 @@
                     <th style="width:11%;">Қурилиш ҳолати</th>
                     <th style="width:9%;">Шартнома қиймати</th>
                     <th style="width:9%;">Факт тўлаган</th>
-                    <th style="width:9%;">Қарздорлик (бугунгача)</th>
+                    <th style="width:9%;">Муддати ўтган қарздорлик</th>
+                    <th style="width:9%;">Муддати келмаган қарздорлик</th>
                     <th style="width:9%;">План-Факт фарқи</th>
                 </tr>
             </thead>
@@ -152,7 +188,8 @@
                     <td colspan="6">ЖАМИ ({{ $total }} шартнома)</td>
                     <td class="r">{{ $summaryRow['plan_mln'] }}</td>
                     <td class="r txt-good">{{ $summaryRow['fact_mln'] }}</td>
-                    <td class="r txt-danger">{{ $summaryRow['debt_mln'] }}</td>
+                    <td class="r debt-red-strong">{{ $summaryRow['debt_mln'] }}</td>
+                    <td class="r debt-red-soft">{{ $summaryRow['unoverdue_debt_mln'] }}</td>
                     <td class="r {{ $summaryRow['diff_class'] }}">{{ $summaryRow['diff_mln'] }}</td>
                 </tr>
 
@@ -167,7 +204,8 @@
                     <td class="c"><span class="issue-badge {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></td>
                     <td class="r">{{ $contract['plan_mln'] }}</td>
                     <td class="r txt-good">{{ $contract['fact_mln'] }}</td>
-                    <td class="r txt-danger" style="font-weight:600;">{{ $contract['debt_mln'] }}</td>
+                    <td class="r debt-red-strong" style="font-weight:600;">{{ $contract['debt_mln'] }}</td>
+                    <td class="r debt-red-soft" style="font-weight:600;">{{ $contract['unoverdue_debt_mln'] }}</td>
                     <td class="r {{ $contract['diff_class'] }}">{{ $contract['diff_mln'] }}</td>
                 </tr>
                 @endforeach
