@@ -669,6 +669,7 @@ class TransactionController extends Controller
             : '—';
 
         $scheduleRows = [];
+        $scheduleEditorRows = [];
         $remainingFactForSchedule = $fact;
         $today = \Carbon\CarbonImmutable::now()->endOfDay();
 
@@ -732,6 +733,25 @@ class TransactionController extends Controller
                 'diff_pct' => $diffPercent === null ? '—' : $this->formatNumber($diffPercent, 1) . '%',
                 'diff_pct_class' => $diffPercentClass,
             ];
+
+            $editorDateValue = '';
+            $editorDateRaw = trim((string) ($row['date'] ?? ''));
+            if ($editorDateRaw !== '' && $editorDateRaw !== '—') {
+                try {
+                    $editorDateValue = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $editorDateRaw)->format('Y-m-d');
+                } catch (\Throwable $e) {
+                    try {
+                        $editorDateValue = \Carbon\CarbonImmutable::parse($editorDateRaw)->format('Y-m-d');
+                    } catch (\Throwable $inner) {
+                    }
+                }
+            }
+
+            $scheduleEditorRows[] = [
+                'row_num' => $index + 1,
+                'date' => $editorDateValue,
+                'amount' => number_format($scheduleAmount, 2, '.', ''),
+            ];
         }
 
         $statusKey = (string) ($contract->status_key ?? 'in_progress');
@@ -757,12 +777,116 @@ class TransactionController extends Controller
                 'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),
             ],
             'scheduleRows' => $scheduleRows,
+            'scheduleEditorRows' => $scheduleEditorRows,
             'payments' => $this->mapContractPaymentsForView($payload['payments'], (int) $payload['page'], (int) $payload['per_page']),
             'total' => (int) ($payload['total'] ?? 0),
             'lastPage' => (int) ($payload['last_page'] ?? 1),
             'backUrl' => $backUrl ?: route('summary2'),
+            'canEditSchedule' => $this->canEditContractSchedule($request->user()),
             'pagination' => $this->buildContractPagination((int) ($contract->contract_id ?? 0), $backUrl, (int) $payload['page'], (int) $payload['last_page']),
         ]);
+    }
+
+    public function updateContractSchedule(Request $request, $contractId)
+    {
+        if (!$this->canEditContractSchedule($request->user())) {
+            abort(403, 'Forbidden');
+        }
+
+        $contractId = (int) $contractId;
+
+        $contractExists = DB::table('apz_contracts')
+            ->where('contract_id', $contractId)
+            ->exists();
+
+        if (!$contractExists) {
+            abort(404);
+        }
+
+        $rows = $request->input('schedule', []);
+        if (!is_array($rows)) {
+            $rows = [];
+        }
+
+        $normalizedSchedule = [];
+
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $dateRaw = trim((string) ($row['date'] ?? ''));
+            $amountRaw = trim((string) ($row['amount'] ?? ''));
+
+            if ($dateRaw === '' && $amountRaw === '') {
+                continue;
+            }
+
+            if ($dateRaw === '' || $amountRaw === '') {
+                return back()
+                    ->withInput()
+                    ->with('error', 'График санаси ва график суммаси тўлиқ киритилиши керак.');
+            }
+
+            try {
+                $dateKey = \Carbon\CarbonImmutable::parse($dateRaw)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'График санаси нотўғри форматда.');
+            }
+
+            $amount = $this->toNumericValue($amountRaw);
+            if ($amount < 0) {
+                return back()
+                    ->withInput()
+                    ->with('error', 'График суммаси манфий бўлиши мумкин эмас.');
+            }
+
+            if ($amount == 0.0) {
+                continue;
+            }
+
+            $normalizedSchedule[$dateKey] = (float) ($normalizedSchedule[$dateKey] ?? 0.0) + $amount;
+        }
+
+        ksort($normalizedSchedule);
+
+        $schedulePayload = empty($normalizedSchedule)
+            ? null
+            : json_encode($normalizedSchedule, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        DB::table('apz_contracts')
+            ->where('contract_id', $contractId)
+            ->update(['payment_schedule' => $schedulePayload]);
+
+        $routeParams = ['contractId' => $contractId];
+
+        $page = max(1, (int) $request->input('page', 1));
+        if ($page > 1) {
+            $routeParams['page'] = $page;
+        }
+
+        $back = trim((string) $request->input('back', ''));
+        if ($back !== '') {
+            $routeParams['back'] = $back;
+        }
+
+        return redirect()
+            ->route('contracts.show', $routeParams)
+            ->with('success', 'Тўлов жадвали янгиланди.');
+    }
+
+    private function canEditContractSchedule($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        $email = mb_strtolower(trim((string) ($user->email ?? '')));
+        $name = mb_strtolower(trim((string) ($user->name ?? '')));
+
+        return $email === 'superadmin@example.com' && $name === 'administrator';
     }
 
     // ──────────────────────────────────────────────────────────────────────

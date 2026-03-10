@@ -56,6 +56,27 @@
     .tbl tbody tr:nth-child(even) td { background:#f9fcfc; }
     .tbl td.r { text-align:right; }
     .tbl td.c { text-align:center; }
+    .schedule-edit-wrap {
+        border:1px solid #e7ecec;
+        border-radius:10px;
+        padding:10px;
+        background:#fbfefe;
+        margin:10px 0 14px;
+    }
+    .schedule-input {
+        width:100%;
+        border:1px solid #d8e0e6;
+        border-radius:6px;
+        padding:6px 8px;
+        font-size:.8rem;
+    }
+    .schedule-actions {
+        display:flex;
+        justify-content:flex-end;
+        gap:8px;
+        margin-top:10px;
+        flex-wrap:wrap;
+    }
     .flow-in { color:#0a8a2e; font-weight:700; }
     .flow-out { color:#e63260; font-weight:700; }
     .pct-red { color:#e63260; font-weight:700; }
@@ -83,6 +104,13 @@
 
 @section('content')
 <div class="report-wrap">
+    @if(session('success'))
+        <div class="platon-alert platon-alert-success no-print" style="margin-bottom:12px;">✓ {{ session('success') }}</div>
+    @endif
+    @if(session('error'))
+        <div class="platon-alert platon-alert-danger no-print" style="margin-bottom:12px;">✗ {{ session('error') }}</div>
+    @endif
+
     <div class="report-head no-print">
         <div>
             <h1>Шартнома тафсилоти</h1>
@@ -90,6 +118,9 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a href="{{ $backUrl }}" class="platon-btn platon-btn-outline platon-btn-sm">← Орқага</a>
+            @if($canEditSchedule)
+                <button type="button" id="schedule-edit-toggle" class="platon-btn platon-btn-outline platon-btn-sm">Тўлов жадвалини таҳрирлаш</button>
+            @endif
             <button type="button" onclick="window.print()" class="platon-btn platon-btn-primary platon-btn-sm">Чоп</button>
         </div>
     </div>
@@ -112,6 +143,70 @@
     </div>
 
     <div class="block-title">Тўлов жадвали</div>
+
+    @if($canEditSchedule)
+        @php
+            $scheduleEditorInputRows = old('schedule');
+            if (!is_array($scheduleEditorInputRows) || empty($scheduleEditorInputRows)) {
+                $scheduleEditorInputRows = array_map(static function ($row) {
+                    return [
+                        'date' => (string) ($row['date'] ?? ''),
+                        'amount' => (string) ($row['amount'] ?? ''),
+                    ];
+                }, $scheduleEditorRows ?? []);
+            }
+        @endphp
+
+        <div id="schedule-edit-wrap" class="schedule-edit-wrap no-print" style="display:none;">
+            <form method="POST" action="{{ route('contracts.schedule.update', ['contractId' => $contract['contract_id']]) }}">
+                @csrf
+                <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+                <input type="hidden" name="page" value="{{ request('page', 1) }}">
+
+                <div class="tbl-wrap">
+                    <table class="tbl">
+                        <thead>
+                            <tr>
+                                <th style="width:6%;">№</th>
+                                <th>График санаси</th>
+                                <th>График суммаси</th>
+                                <th style="width:10%;">Амал</th>
+                            </tr>
+                        </thead>
+                        <tbody id="schedule-editor-body">
+                            @forelse($scheduleEditorInputRows as $index => $editRow)
+                                <tr>
+                                    <td class="c js-row-num">{{ $index + 1 }}</td>
+                                    <td>
+                                        <input type="date" class="schedule-input" name="schedule[{{ $index }}][date]" value="{{ (string) ($editRow['date'] ?? '') }}">
+                                    </td>
+                                    <td>
+                                        <input type="number" class="schedule-input" step="0.01" min="0" name="schedule[{{ $index }}][amount]" value="{{ (string) ($editRow['amount'] ?? '') }}" placeholder="0.00">
+                                    </td>
+                                    <td class="c">
+                                        <button type="button" class="platon-btn platon-btn-outline platon-btn-sm js-remove-schedule-row">Ўчириш</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td class="c js-row-num">1</td>
+                                    <td><input type="date" class="schedule-input" name="schedule[0][date]"></td>
+                                    <td><input type="number" class="schedule-input" step="0.01" min="0" name="schedule[0][amount]" placeholder="0.00"></td>
+                                    <td class="c"><button type="button" class="platon-btn platon-btn-outline platon-btn-sm js-remove-schedule-row">Ўчириш</button></td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="schedule-actions">
+                    <button type="button" id="add-schedule-row" class="platon-btn platon-btn-outline platon-btn-sm">+ Қатор қўшиш</button>
+                    <button type="submit" class="platon-btn platon-btn-primary platon-btn-sm">Сақлаш</button>
+                </div>
+            </form>
+        </div>
+    @endif
+
     <div class="tbl-wrap">
         <table class="tbl">
             <thead>
@@ -197,4 +292,88 @@
     </div>
     @endif
 </div>
+
+<script>
+    (function () {
+        const toggleBtn = document.getElementById('schedule-edit-toggle');
+        const wrap = document.getElementById('schedule-edit-wrap');
+        const body = document.getElementById('schedule-editor-body');
+        const addBtn = document.getElementById('add-schedule-row');
+        const openByDefault = @json(session('error') || is_array(old('schedule')));
+
+        if (!toggleBtn || !wrap || !body || !addBtn) {
+            return;
+        }
+
+        const renumberRows = () => {
+            const rows = Array.from(body.querySelectorAll('tr'));
+
+            rows.forEach((row, index) => {
+                const numCell = row.querySelector('.js-row-num');
+                if (numCell) {
+                    numCell.textContent = String(index + 1);
+                }
+
+                const dateInput = row.querySelector('input[type="date"]');
+                const amountInput = row.querySelector('input[type="number"]');
+
+                if (dateInput) {
+                    dateInput.name = `schedule[${index}][date]`;
+                }
+                if (amountInput) {
+                    amountInput.name = `schedule[${index}][amount]`;
+                }
+            });
+        };
+
+        const addRow = (dateValue = '', amountValue = '') => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="c js-row-num"></td>
+                <td><input type="date" class="schedule-input" value="${dateValue}"></td>
+                <td><input type="number" class="schedule-input" step="0.01" min="0" value="${amountValue}" placeholder="0.00"></td>
+                <td class="c"><button type="button" class="platon-btn platon-btn-outline platon-btn-sm js-remove-schedule-row">Ўчириш</button></td>
+            `;
+            body.appendChild(row);
+            renumberRows();
+        };
+
+        toggleBtn.addEventListener('click', function () {
+            const isHidden = wrap.style.display === 'none';
+            wrap.style.display = isHidden ? 'block' : 'none';
+        });
+
+        if (openByDefault) {
+            wrap.style.display = 'block';
+        }
+
+        addBtn.addEventListener('click', function () {
+            addRow();
+        });
+
+        body.addEventListener('click', function (event) {
+            const removeBtn = event.target.closest('.js-remove-schedule-row');
+            if (!removeBtn) {
+                return;
+            }
+
+            const rows = body.querySelectorAll('tr');
+            if (rows.length <= 1) {
+                const dateInput = rows[0].querySelector('input[type="date"]');
+                const amountInput = rows[0].querySelector('input[type="number"]');
+                if (dateInput) dateInput.value = '';
+                if (amountInput) amountInput.value = '';
+                return;
+            }
+
+            const row = removeBtn.closest('tr');
+            if (row) {
+                row.remove();
+                renumberRows();
+            }
+        });
+
+        renumberRows();
+    })();
+</script>
 @endsection

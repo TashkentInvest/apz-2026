@@ -54,6 +54,7 @@ Route::middleware('auth')->group(function () {
 
         // Contract detail page
         Route::get('/contracts/{contractId}', [TransactionController::class, 'contractShow'])->name('contracts.show');
+        Route::post('/contracts/{contractId}/schedule', [TransactionController::class, 'updateContractSchedule'])->name('contracts.schedule.update');
 
         // Modal AJAX endpoints
         Route::get('/modal/payments',           [TransactionController::class, 'modalPayments'])->name('modal.payments');
