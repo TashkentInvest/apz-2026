@@ -456,7 +456,7 @@
             <div class="sc-sub">Уникал шартномалар: {{ $uContracts }}</div>
         </div>
     </a>
-    <a href="{{ route('debts', ['status' => 'in_progress', 'debtors' => 1]) }}" class="stat-card-link">
+    <a href="{{ route('debts', ['status' => 'in_progress', 'debt_type' => 'overdue', 'debtors' => 1]) }}" class="stat-card-link">
         <div class="stat-card red">
             <div class="sc-label">Қарздор шартномалар</div>
             <div class="sc-value">{{ number_format($debtorsCount) }}</div>

@@ -124,7 +124,7 @@ class TransactionController extends Controller
         $monitorIssue    = $this->normalizeRequestedIssue($request->filled('issue') ? (string) $request->issue : 'all');
         $monitorSearch   = $request->filled('search') ? trim((string) $request->search) : null;
 
-        $dashboardCacheKey = 'apz_dashboard_data_v5_' . md5(
+        $dashboardCacheKey = 'apz_dashboard_data_v6_' . md5(
             ($monitorDistrict ?? 'all') . '|' .
             $monitorStatus . '|' .
             $monitorIssue . '|' .
@@ -149,6 +149,10 @@ class TransactionController extends Controller
             $cancelledExpr = "({$statusExpr} LIKE '%bekor%' OR {$statusExpr} LIKE '%бекор%' OR {$statusExpr} LIKE '%cancel%')";
             $completedExpr = "({$statusExpr} LIKE '%yakun%' OR {$statusExpr} LIKE '%якун%' OR {$statusExpr} LIKE '%tugal%' OR {$statusExpr} LIKE '%complete%')";
 
+            $statusExprAlias = "LOWER(TRIM(COALESCE(c.contract_status, '')))";
+            $cancelledExprAlias = "({$statusExprAlias} LIKE '%bekor%' OR {$statusExprAlias} LIKE '%бекор%' OR {$statusExprAlias} LIKE '%cancel%')";
+            $completedExprAlias = "({$statusExprAlias} LIKE '%yakun%' OR {$statusExprAlias} LIKE '%якун%' OR {$statusExprAlias} LIKE '%tugal%' OR {$statusExprAlias} LIKE '%complete%')";
+
             $contractStats = DB::selectOne("
                 SELECT
                     COUNT(*) as total,
@@ -159,22 +163,10 @@ class TransactionController extends Controller
                 FROM apz_contracts
             ");
 
-            $debtorsStats = DB::selectOne("
-                SELECT
-                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr})
-                              AND COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0)
-                             THEN 1 ELSE 0 END) as debtors_count,
-                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr})
-                             THEN GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)
-                             ELSE 0 END) as debt_total
-                FROM apz_contracts c
-                LEFT JOIN (
-                    SELECT contract_id, SUM(amount) as total_paid
-                    FROM apz_payments
-                    WHERE flow = 'Приход'
-                    GROUP BY contract_id
-                ) paid ON paid.contract_id = c.contract_id
-            ");
+            $activeContracts = $this->fetchContractFinancialRows([
+                "(NOT {$cancelledExprAlias} AND NOT {$completedExprAlias})",
+            ]);
+            $debtorsStats = $this->buildOverdueDebtStatsFromContracts($activeContracts);
 
             // Monthly income — last 18 months
             $monthlyStats = DB::select("
@@ -700,7 +692,7 @@ class TransactionController extends Controller
         $scheduleRows = [];
         $scheduleEditorRows = [];
         $remainingFactForSchedule = $fact;
-        $today = \Carbon\CarbonImmutable::now()->endOfDay();
+        $today = \Carbon\CarbonImmutable::today();
 
         foreach ($payload['schedule'] as $index => $row) {
             $scheduleAmount = max((float) ($row['amount'] ?? 0), 0.0);
@@ -712,11 +704,11 @@ class TransactionController extends Controller
             if ($rawDate !== '' && $rawDate !== '—') {
                 try {
                     $dueDate = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $rawDate)->endOfDay();
-                    $type = $dueDate->lessThanOrEqualTo($today) ? 'Муддатли' : 'Муддатсиз';
+                    $type = $dueDate->lessThan($today) ? 'Муддатли' : 'Муддатсиз';
                 } catch (\Throwable $e) {
                     try {
                         $dueDate = \Carbon\CarbonImmutable::parse($rawDate)->endOfDay();
-                        $type = $dueDate->lessThanOrEqualTo($today) ? 'Муддатли' : 'Муддатсиз';
+                        $type = $dueDate->lessThan($today) ? 'Муддатли' : 'Муддатсиз';
                     } catch (\Throwable $inner) {
                     }
                 }
@@ -1522,6 +1514,58 @@ class TransactionController extends Controller
         ]);
     }
 
+    private function fetchContractFinancialRows(array $whereConditions = []): array
+    {
+        $cleanConditions = array_values(array_filter($whereConditions, static fn ($condition) => is_string($condition) && trim($condition) !== ''));
+        $whereSql = $cleanConditions ? ('WHERE ' . implode(' AND ', $cleanConditions)) : '';
+
+        return DB::select("
+            SELECT c.id, c.contract_id, c.investor_name, c.district,
+                   c.contract_number, c.contract_date, c.phone,
+                   c.contract_status, c.construction_issues,
+                   c.contract_value, c.payment_schedule, c.payment_terms,
+                   COALESCE(paid.total_paid, 0) as total_paid
+            FROM apz_contracts c
+            LEFT JOIN (
+                SELECT contract_id,
+                       SUM(amount) as total_paid
+                FROM apz_payments
+                WHERE flow = 'Приход'
+                GROUP BY contract_id
+            ) paid ON paid.contract_id = c.contract_id
+            {$whereSql}
+            ORDER BY c.id
+        ");
+    }
+
+    private function buildOverdueDebtStatsFromContracts(array $contracts): object
+    {
+        $debtorsCount = 0;
+        $debtTotal = 0.0;
+
+        foreach ($contracts as $contract) {
+            $metrics = $this->calculateContractFinancials(
+                $contract->contract_value ?? 0,
+                $contract->total_paid ?? 0,
+                $contract->payment_schedule ?? null,
+                $contract->payment_terms ?? null,
+                $contract->contract_date ?? null
+            );
+
+            $overdueDebt = (float) ($metrics['overdue_debt'] ?? 0.0);
+
+            if ($overdueDebt > 0.0) {
+                $debtorsCount++;
+                $debtTotal += $overdueDebt;
+            }
+        }
+
+        return (object) [
+            'debtors_count' => $debtorsCount,
+            'debt_total' => $debtTotal,
+        ];
+    }
+
     private function calculateContractFinancials($contractValue, $paidAmount, $scheduleRaw = null, $paymentTerms = null, $contractDate = null): array
     {
         $plan = max((float) $contractValue, 0.0);
@@ -1547,7 +1591,7 @@ class TransactionController extends Controller
 
     private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw, $paymentTerms = null, $contractDate = null): float
     {
-        $today = \Carbon\CarbonImmutable::now()->endOfDay();
+        $today = \Carbon\CarbonImmutable::today();
         $initialDue = $this->resolveInitialPaymentDueAmount($contractValue, $paymentTerms, $contractDate, $today);
 
         $scheduleByDate = $this->parseScheduleByDate($scheduleRaw);
@@ -1578,14 +1622,14 @@ class TransactionController extends Controller
                 $latestDueDate = $dueDate;
             }
 
-            if ($dueDate->lessThanOrEqualTo($today)) {
+            if ($dueDate->lessThan($today)) {
                 $planDueToday += (float) $amount;
             }
         }
 
         if ($latestDueDate === null) {
             $planDueToday = max($contractValue, $planDueToday);
-        } elseif ($latestDueDate->lessThanOrEqualTo($today) && $contractValue > $planDueToday) {
+        } elseif ($latestDueDate->lessThan($today) && $contractValue > $planDueToday) {
             $planDueToday = $contractValue;
         }
 
@@ -1654,7 +1698,7 @@ class TransactionController extends Controller
             return true;
         }
 
-        return $contractDateValue->lessThanOrEqualTo($today);
+        return $contractDateValue->lessThan($today);
     }
 
     private function buildGrafikScheduleHeaders(): array
@@ -2613,6 +2657,7 @@ class TransactionController extends Controller
             'apz_dashboard_data_v3_' . md5('all|all|all|'),
             'apz_dashboard_data_v4_' . md5('all|all|all|'),
             'apz_dashboard_data_v5_' . md5('all|all|all|'),
+            'apz_dashboard_data_v6_' . md5('all|all|all|'),
             'apz_summary_report_all',
             'apz_summary2_' . md5('all|all|all|'),
             'apz_summary2_' . md5('all|in_progress|all|'),
@@ -2784,6 +2829,7 @@ class TransactionController extends Controller
             'status' => $status,
             'issue' => $issue !== 'all' ? $issue : null,
             'search' => $search,
+            'debt_type' => 'overdue',
             'debtors' => null,
         ];
 
@@ -2872,15 +2918,13 @@ class TransactionController extends Controller
                 'status' => $status,
                 'issue' => $issue !== 'all' ? $issue : null,
                 'search' => $search,
+                'debt_type' => 'overdue',
                 'debtors' => null,
             ];
 
             $params = array_merge($params, $overrides);
             return route('debts', $cleanQuery($params));
         };
-
-        $problemWhere   = $this->buildConstructionIssueWhereSql('problem', 'c');
-        $noProblemWhere = $this->buildConstructionIssueWhereSql('no_problem', 'c');
 
         $baseWhere = [];
         $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
@@ -2893,45 +2937,73 @@ class TransactionController extends Controller
             $baseWhere[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR c.district LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
         }
 
-        $paidJoinSql = "
-            LEFT JOIN (
-                SELECT contract_id, SUM(amount) as total_paid
-                FROM apz_payments
-                WHERE flow = 'Приход'
-                GROUP BY contract_id
-            ) paid ON paid.contract_id = c.contract_id
-        ";
+        $filteredContracts = $this->fetchContractFinancialRows($baseWhere);
 
-        $statsSelect = "
-            COUNT(*) as contracts_count,
-            COALESCE(SUM(c.contract_value), 0) as contract_value,
-            COALESCE(SUM(COALESCE(paid.total_paid, 0)), 0) as total_paid,
-            COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
-        ";
+        foreach ($filteredContracts as $contract) {
+            $metrics = $this->calculateContractFinancials(
+                $contract->contract_value ?? 0,
+                $contract->total_paid ?? 0,
+                $contract->payment_schedule ?? null,
+                $contract->payment_terms ?? null,
+                $contract->contract_date ?? null
+            );
 
-        $fetchStats = function (array $conditions) use ($paidJoinSql, $statsSelect) {
-            $clean = array_values(array_filter($conditions, fn ($c) => is_string($c) && trim($c) !== ''));
-            $whereSql = $clean ? 'WHERE ' . implode(' AND ', $clean) : '';
-            return DB::selectOne("SELECT {$statsSelect} FROM apz_contracts c {$paidJoinSql} {$whereSql}");
+            $contract->contract_value = (float) ($metrics['plan'] ?? 0.0);
+            $contract->total_paid = (float) ($metrics['fact'] ?? 0.0);
+            $contract->debt_total = (float) ($metrics['overdue_debt'] ?? 0.0);
+            $contract->issue_key = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
+            $contract->is_full_paid = $contract->contract_value > 0.0
+                && $contract->total_paid >= $contract->contract_value;
+        }
+
+        $aggregateContracts = function (array $contracts): object {
+            $aggregate = (object) [
+                'contracts_count' => 0,
+                'contract_value' => 0.0,
+                'total_paid' => 0.0,
+                'debt_total' => 0.0,
+            ];
+
+            foreach ($contracts as $contract) {
+                $aggregate->contracts_count++;
+                $aggregate->contract_value += (float) ($contract->contract_value ?? 0.0);
+                $aggregate->total_paid += (float) ($contract->total_paid ?? 0.0);
+                $aggregate->debt_total += (float) ($contract->debt_total ?? 0.0);
+            }
+
+            return $aggregate;
         };
 
-        $scopeStats    = $fetchStats($baseWhere);
-        $scopeProblem  = $fetchStats(array_merge($baseWhere, [$problemWhere]));
-        $scopeClear    = $fetchStats(array_merge($baseWhere, [$noProblemWhere]));
-        $scopeDebt     = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']));
-        $scopeFullPaid = $fetchStats(array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > 0 AND COALESCE(paid.total_paid, 0) >= COALESCE(c.contract_value, 0))']));
+        $scopeStats = $aggregateContracts($filteredContracts);
+        $scopeProblem = $aggregateContracts(array_values(array_filter(
+            $filteredContracts,
+            static fn ($contract) => (($contract->issue_key ?? '') === 'problem')
+        )));
+        $scopeClear = $aggregateContracts(array_values(array_filter(
+            $filteredContracts,
+            static fn ($contract) => (($contract->issue_key ?? '') === 'no_problem')
+        )));
+        $scopeDebt = $aggregateContracts(array_values(array_filter(
+            $filteredContracts,
+            static fn ($contract) => ((float) ($contract->debt_total ?? 0.0)) > 0.0
+        )));
+        $scopeFullPaid = $aggregateContracts(array_values(array_filter(
+            $filteredContracts,
+            static fn ($contract) => (bool) ($contract->is_full_paid ?? false)
+        )));
 
-        $toRow = function (string $label, object $row, ?string $listUrl = null) {
+        $toRow = function (string $label, object $row, ?string $listUrl = null): array {
             $plan = (float) ($row->contract_value ?? 0);
             $fact = (float) ($row->total_paid ?? 0);
+
             return [
-                'label'           => $label,
+                'label' => $label,
                 'contracts_count' => (int) ($row->contracts_count ?? 0),
-                'contract_value'  => $plan,
-                'total_paid'      => $fact,
-                'debt_total'      => (float) ($row->debt_total ?? 0),
-                'pct'             => $plan > 0 ? round($fact / $plan * 100, 1) : 0,
-                'list_url'        => $listUrl,
+                'contract_value' => $plan,
+                'total_paid' => $fact,
+                'debt_total' => (float) ($row->debt_total ?? 0),
+                'pct' => $plan > 0 ? round($fact / $plan * 100, 1) : 0,
+                'list_url' => $listUrl,
             ];
         };
 
@@ -2940,26 +3012,57 @@ class TransactionController extends Controller
             $toRow('Муаммоли', $scopeProblem, $buildSummaryListUrl(['issue' => 'problem'])),
             $toRow('Муаммосиз', $scopeClear, $buildSummaryListUrl(['issue' => 'no_problem'])),
             $toRow('100% бажарилган', $scopeFullPaid, $buildSummaryListUrl()),
-            $toRow('Қарздорлар', $scopeDebt, $buildDebtsListUrl(['debtors' => 1])),
+            $toRow('Қарздорлар', $scopeDebt, $buildDebtsListUrl(['debtors' => 1, 'debt_type' => 'overdue'])),
         ];
 
-        $districtConditions = array_merge($baseWhere, ["c.district IS NOT NULL AND c.district != ''"]);
-        $districtWhereSql = 'WHERE ' . implode(' AND ', $districtConditions);
+        $districtBuckets = [];
+        foreach ($filteredContracts as $contract) {
+            $districtName = trim((string) ($contract->district ?? ''));
+            if ($districtName === '') {
+                continue;
+            }
 
-        $monitoringDistrictRows = DB::select("
-            SELECT c.district,
-                   COUNT(*) as contracts_count,
-                   COALESCE(SUM(c.contract_value), 0) as contract_value,
-                   COALESCE(SUM(COALESCE(paid.total_paid, 0)), 0) as total_paid,
-                   COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total,
-                   SUM(CASE WHEN {$problemWhere} THEN 1 ELSE 0 END) as problem_count,
-                   SUM(CASE WHEN {$noProblemWhere} THEN 1 ELSE 0 END) as no_problem_count
-            FROM apz_contracts c
-            {$paidJoinSql}
-            {$districtWhereSql}
-            GROUP BY c.district
-            ORDER BY debt_total DESC, contract_value DESC
-        ");
+            if (!isset($districtBuckets[$districtName])) {
+                $districtBuckets[$districtName] = (object) [
+                    'district' => $districtName,
+                    'contracts_count' => 0,
+                    'contract_value' => 0.0,
+                    'total_paid' => 0.0,
+                    'debt_total' => 0.0,
+                    'problem_count' => 0,
+                    'no_problem_count' => 0,
+                ];
+            }
+
+            $bucket = $districtBuckets[$districtName];
+            $bucket->contracts_count++;
+            $bucket->contract_value += (float) ($contract->contract_value ?? 0.0);
+            $bucket->total_paid += (float) ($contract->total_paid ?? 0.0);
+            $bucket->debt_total += (float) ($contract->debt_total ?? 0.0);
+
+            if (($contract->issue_key ?? '') === 'problem') {
+                $bucket->problem_count++;
+            }
+
+            if (($contract->issue_key ?? '') === 'no_problem') {
+                $bucket->no_problem_count++;
+            }
+        }
+
+        $monitoringDistrictRows = array_values($districtBuckets);
+        usort($monitoringDistrictRows, static function ($left, $right): int {
+            $debtCompare = ((float) ($right->debt_total ?? 0.0)) <=> ((float) ($left->debt_total ?? 0.0));
+            if ($debtCompare !== 0) {
+                return $debtCompare;
+            }
+
+            $planCompare = ((float) ($right->contract_value ?? 0.0)) <=> ((float) ($left->contract_value ?? 0.0));
+            if ($planCompare !== 0) {
+                return $planCompare;
+            }
+
+            return strcmp((string) ($left->district ?? ''), (string) ($right->district ?? ''));
+        });
 
         foreach ($monitoringDistrictRows as $row) {
             $plan = (float) ($row->contract_value ?? 0);
@@ -2977,66 +3080,97 @@ class TransactionController extends Controller
             $row->debt_url = $buildDebtsListUrl([
                 'district' => $row->district,
                 'debtors' => 1,
+                'debt_type' => 'overdue',
             ]);
         }
 
-        $topDebtConditions = array_merge($baseWhere, ['(COALESCE(c.contract_value, 0) > COALESCE(paid.total_paid, 0))']);
-        $topDebtWhereSql = $topDebtConditions ? 'WHERE ' . implode(' AND ', $topDebtConditions) : '';
+        $monitoringTopDebts = array_values(array_filter(
+            $filteredContracts,
+            static fn ($contract) => ((float) ($contract->debt_total ?? 0.0)) > 0.0
+        ));
+        usort($monitoringTopDebts, static function ($left, $right): int {
+            $debtCompare = ((float) ($right->debt_total ?? 0.0)) <=> ((float) ($left->debt_total ?? 0.0));
+            if ($debtCompare !== 0) {
+                return $debtCompare;
+            }
 
-        $monitoringTopDebts = DB::select("
-            SELECT c.contract_id, c.investor_name, c.district, c.contract_number, c.contract_date, c.phone,
-                   c.contract_status, c.construction_issues,
-                   COALESCE(c.contract_value, 0) as contract_value,
-                   COALESCE(paid.total_paid, 0) as total_paid,
-                   GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0) as debt_total
-            FROM apz_contracts c
-            {$paidJoinSql}
-            {$topDebtWhereSql}
-            ORDER BY debt_total DESC
-            LIMIT 32
-        ");
+            return ((float) ($right->contract_value ?? 0.0)) <=> ((float) ($left->contract_value ?? 0.0));
+        });
+        $monitoringTopDebts = array_slice($monitoringTopDebts, 0, 32);
 
         foreach ($monitoringTopDebts as $row) {
             $row->issue_label = $this->issueStatusLabel($row->construction_issues ?? null);
         }
 
-        $newContractConditions = array_merge($baseWhere, [
-            'c.contract_date IS NOT NULL',
-            "c.contract_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')",
-            "c.contract_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)",
-        ]);
-        $newContractWhereSql = 'WHERE ' . implode(' AND ', $newContractConditions);
+        $parseContractDate = static function ($rawDate): ?\Carbon\CarbonImmutable {
+            $dateValue = trim((string) $rawDate);
+            if ($dateValue === '') {
+                return null;
+            }
 
-        $monitoringNewContracts = DB::select("
-            SELECT DATE(c.contract_date) as contract_day,
-                   COUNT(*) as contracts_count,
-                   COALESCE(SUM(c.contract_value), 0) as contract_value,
-                   COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
-            FROM apz_contracts c
-            {$paidJoinSql}
-            {$newContractWhereSql}
-            GROUP BY DATE(c.contract_date)
-            ORDER BY DATE(c.contract_date)
-        ");
+            try {
+                return \Carbon\CarbonImmutable::parse($dateValue)->startOfDay();
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
+
+        $groupContractsByDate = function (array $contracts) use ($parseContractDate): array {
+            $groups = [];
+
+            foreach ($contracts as $contract) {
+                $contractDay = $parseContractDate($contract->contract_date ?? null);
+                if ($contractDay === null) {
+                    continue;
+                }
+
+                $dayKey = $contractDay->format('Y-m-d');
+                if (!isset($groups[$dayKey])) {
+                    $groups[$dayKey] = (object) [
+                        'contract_day' => $dayKey,
+                        'contracts_count' => 0,
+                        'contract_value' => 0.0,
+                        'debt_total' => 0.0,
+                    ];
+                }
+
+                $groups[$dayKey]->contracts_count++;
+                $groups[$dayKey]->contract_value += (float) ($contract->contract_value ?? 0.0);
+                $groups[$dayKey]->debt_total += (float) ($contract->debt_total ?? 0.0);
+            }
+
+            ksort($groups);
+            return array_values($groups);
+        };
+
+        $today = \Carbon\CarbonImmutable::today();
+        $monthStart = $today->startOfMonth();
+        $monthEnd = $monthStart->addMonth();
+
+        $currentMonthContracts = array_values(array_filter($filteredContracts, function ($contract) use ($parseContractDate, $monthStart, $monthEnd) {
+            $contractDay = $parseContractDate($contract->contract_date ?? null);
+            if ($contractDay === null) {
+                return false;
+            }
+
+            return $contractDay->greaterThanOrEqualTo($monthStart)
+                && $contractDay->lessThan($monthEnd);
+        }));
+
+        $monitoringNewContracts = $groupContractsByDate($currentMonthContracts);
 
         if (empty($monitoringNewContracts)) {
-            $fallbackConditions = array_merge($baseWhere, [
-                'c.contract_date IS NOT NULL',
-                'c.contract_date >= DATE_SUB(CURDATE(), INTERVAL 31 DAY)',
-            ]);
-            $fallbackWhereSql = 'WHERE ' . implode(' AND ', $fallbackConditions);
+            $fallbackStart = $today->subDays(31)->startOfDay();
+            $fallbackContracts = array_values(array_filter($filteredContracts, function ($contract) use ($parseContractDate, $fallbackStart) {
+                $contractDay = $parseContractDate($contract->contract_date ?? null);
+                if ($contractDay === null) {
+                    return false;
+                }
 
-            $monitoringNewContracts = DB::select("
-                SELECT DATE(c.contract_date) as contract_day,
-                       COUNT(*) as contracts_count,
-                       COALESCE(SUM(c.contract_value), 0) as contract_value,
-                       COALESCE(SUM(GREATEST(COALESCE(c.contract_value, 0) - COALESCE(paid.total_paid, 0), 0)), 0) as debt_total
-                FROM apz_contracts c
-                {$paidJoinSql}
-                {$fallbackWhereSql}
-                GROUP BY DATE(c.contract_date)
-                ORDER BY DATE(c.contract_date)
-            ");
+                return $contractDay->greaterThanOrEqualTo($fallbackStart);
+            }));
+
+            $monitoringNewContracts = $groupContractsByDate($fallbackContracts);
         }
 
         $planByMonth = [];
