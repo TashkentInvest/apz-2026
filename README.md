@@ -123,3 +123,8 @@ Generated files:
  php artisan db:seed --class='Database\Seeders\DatabaseSeeder'
 ```
     
+
+```
+php artisan db:seed --class=ApzPaymentsSeeder - only payments
+php artisan db:seed --class=ApzScheduleSeeder - only schedules
+```

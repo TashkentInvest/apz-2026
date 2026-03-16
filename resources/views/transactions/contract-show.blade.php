@@ -136,6 +136,15 @@
     <div class="meta-grid">
         <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
         <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
+        <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
+        <div class="meta"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
+        <div class="meta"><div class="lbl">Қурилиш ҳажми</div><div class="val">{{ $contract['build_volume'] }}</div></div>
+        <div class="meta"><div class="lbl">Коэффицент</div><div class="val">{{ $contract['coefficient'] }}</div></div>
+        <div class="meta"><div class="lbl">Зона</div><div class="val">{{ $contract['zone'] }}</div></div>
+        <div class="meta"><div class="lbl">Рухсатнома</div><div class="val">{{ $contract['permit'] }}</div></div>
+        <div class="meta"><div class="lbl">АПЗ номер</div><div class="val">{{ $contract['apz_number'] }}</div></div>
+        <div class="meta"><div class="lbl">Кенгаш хулосаси</div><div class="val">{{ $contract['council_decision'] }}</div></div>
+        <div class="meta"><div class="lbl">Экспертиза хулосаси</div><div class="val">{{ $contract['expertise'] }}</div></div>
         <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
         <div class="meta"><div class="lbl">Шартнома санаси</div><div class="val">{{ $contract['contract_date'] }}</div></div>
         <div class="meta"><div class="lbl">Ҳолат</div><div class="val"><span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
