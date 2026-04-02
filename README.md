@@ -92,8 +92,7 @@ php -d memory_limit=512M artisan db:seed --class=TransactionsSeeder
 
 ```
 php artisan migrate
-php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
-
+a
 # Payments-only seeding (keeps existing contracts/schedules; creates only missing contracts from fakt_apz.csv)
 php artisan db:seed
 
