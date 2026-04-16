@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'Қарздорликлар ҳисоботи')
-
 @push('styles')
 <style>
     .report-container {
@@ -100,16 +99,20 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="grand-stat debt-card">
+            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null, 'debt_type' => 'overdue'])) }}" target="_blank" style="text-decoration:none;">
+            <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
                 <div class="val debt-red-strong">{{ $summaryStats['grand_debt_mln'] }}</div>
-                <div class="lbl">Муддати ўтган қарздорлик (сўм)</div>
+                <div class="lbl">Муддати ўтган қарздорлик (сўм) ↗</div>
             </div>
+            </a>
         </div>
         <div class="col-md-3">
-            <div class="grand-stat debt-card">
+            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null, 'debt_type' => 'unoverdue'])) }}" target="_blank" style="text-decoration:none;">
+            <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
                 <div class="val debt-red-soft">{{ $summaryStats['grand_unoverdue_debt_mln'] }}</div>
-                <div class="lbl">Муддати келмаган қарздорлик (сўм)</div>
+                <div class="lbl">Муддати келмаган қарздорлик (сўм) ↗</div>
             </div>
+            </a>
         </div>
     </div>
 
@@ -121,10 +124,12 @@
             </div>
         </div>
         <div class="col-md-4">
-            <div class="grand-stat debt-card">
+            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null])) }}" target="_blank" style="text-decoration:none;">
+            <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
                 <div class="val debt-red-strong">{{ $summaryStats['grand_total_debt_mln'] }}</div>
-                <div class="lbl">Жами қарздорлик (умумий, сўм)</div>
+                <div class="lbl">Жами қарздорлик (умумий, сўм) ↗</div>
             </div>
+            </a>
         </div>
         <div class="col-md-4">
             <div class="grand-stat">

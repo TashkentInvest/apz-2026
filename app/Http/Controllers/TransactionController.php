@@ -649,6 +649,123 @@ class TransactionController extends Controller
     }
 
     // ──────────────────────────────────────────────────────────────────────
+    // DEBTS SHEET — Full flat table for Excel copy/download
+    // ──────────────────────────────────────────────────────────────────────
+    public function debtsSheet(Request $request)
+    {
+        $statusInput   = $request->filled('status') ? (string) $request->status : 'in_progress';
+        $status        = $this->normalizeRequestedStatus($statusInput, 'in_progress');
+        $issueInput    = $request->filled('issue') ? (string) $request->issue : 'all';
+        $issue         = $this->normalizeRequestedIssue($issueInput);
+        $debtTypeInput = $request->filled('debt_type') ? (string) $request->debt_type : 'all';
+        $debtType      = $this->normalizeDebtTypeFilter($debtTypeInput);
+        $district      = $request->filled('district') ? trim((string) $request->district) : null;
+        $searchTerm    = $request->filled('search') ? trim((string) $request->search) : null;
+        $onlyDebtors   = (int) $request->get('debtors', 0) === 1;
+
+        $cacheKey = 'apz_debts_v4_' . md5(
+            $status . '|' . $issue . '|' . $debtType . '|' .
+            ($district ?? 'all') . '|' . mb_strtolower($searchTerm ?? '') . '|' .
+            ($onlyDebtors ? 'debtors' : 'all')
+        );
+
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $debtType, $district, $searchTerm, $onlyDebtors) {
+            $where = [];
+            $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
+            if ($statusWhere) $where[] = $statusWhere;
+            $issueWhere = $this->buildConstructionIssueWhereSql($issue, 'c');
+            if ($issueWhere) $where[] = $issueWhere;
+            if ($district) $where[] = "c.district = " . DB::getPdo()->quote($district);
+            if ($searchTerm) {
+                $q = DB::getPdo()->quote('%' . $searchTerm . '%');
+                $where[] = "(c.investor_name LIKE {$q} OR c.contract_number LIKE {$q} OR c.inn LIKE {$q} OR CAST(c.contract_id AS CHAR) LIKE {$q})";
+            }
+            $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+            $contracts = DB::select("
+                SELECT c.id, c.contract_id, c.investor_name, c.district,
+                       c.contract_number, c.contract_date, c.contract_status,
+                       c.construction_issues, c.contract_value, c.payment_terms, c.payment_schedule,
+                       COALESCE(paid.total_paid, 0) as total_paid
+                FROM apz_contracts c
+                LEFT JOIN (
+                    SELECT contract_id, SUM(amount) as total_paid
+                    FROM apz_payments WHERE flow = 'Приход' GROUP BY contract_id
+                ) paid ON paid.contract_id = c.contract_id
+                {$whereSql} ORDER BY c.contract_id
+            ");
+            $grandPlan = 0; $grandFact = 0; $grandDebt = 0; $grandUnoverdueDebt = 0;
+            $preparedContracts = [];
+            foreach ($contracts as $contract) {
+                $metrics = $this->calculateContractFinancials(
+                    $contract->contract_value ?? 0, $contract->total_paid ?? 0,
+                    $contract->payment_schedule ?? null, $contract->payment_terms ?? null,
+                    $contract->contract_date ?? null
+                );
+                $plan = $metrics['plan']; $fact = $metrics['fact']; $diff = $metrics['diff'];
+                $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
+                $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
+                $contract->issue_key    = $this->normalizeConstructionIssue($contract->construction_issues ?? null);
+                $contract->issue_label  = $this->issueStatusLabel($contract->construction_issues ?? null);
+                $overdueDebt   = (float) ($metrics['overdue_debt'] ?? 0.0);
+                $unoverdueDebt = (float) ($metrics['unoverdue_debt'] ?? 0.0);
+                if ($debtType === 'overdue' && $overdueDebt <= 0.0) continue;
+                if ($debtType === 'unoverdue' && $unoverdueDebt <= 0.0) continue;
+                if ($debtType === 'overdue')   $unoverdueDebt = 0.0;
+                if ($debtType === 'unoverdue') $overdueDebt   = 0.0;
+                $contract->debt           = $overdueDebt;
+                $contract->overdue_debt   = $overdueDebt;
+                $contract->unoverdue_debt = $unoverdueDebt;
+                $contract->plan_fact_diff = $diff;
+                $totalDebt = $overdueDebt + $unoverdueDebt;
+                if ($onlyDebtors && $totalDebt <= 0.0) continue;
+                $preparedContracts[] = $contract;
+                $grandPlan += $plan; $grandFact += $fact;
+                $grandDebt += $overdueDebt; $grandUnoverdueDebt += $unoverdueDebt;
+            }
+            $availableDistricts = DB::table('apz_contracts')->selectRaw('DISTINCT district')
+                ->whereNotNull('district')->where('district', '!=', '')
+                ->orderBy('district')->pluck('district')->toArray();
+            $contracts = $preparedContracts;
+            return compact('contracts', 'grandPlan', 'grandFact', 'grandDebt', 'grandUnoverdueDebt', 'availableDistricts');
+        });
+
+        $allContracts  = $allData['contracts'];
+        $total         = count($allContracts);
+        $grandPlan     = (float) ($allData['grandPlan'] ?? 0);
+        $grandFact     = (float) ($allData['grandFact'] ?? 0);
+        $grandDebt     = (float) ($allData['grandDebt'] ?? 0);
+        $grandUnoverdueDebt = (float) ($allData['grandUnoverdueDebt'] ?? 0);
+
+        $mapped = $this->mapDebtContractsForView($allContracts, 1, $total ?: 1, url()->current());
+
+        $debtTypeLabel = match($debtType) {
+            'overdue'   => 'Муддати ўтган қарздорлик',
+            'unoverdue' => 'Муддати келмаган қарздорлик',
+            default     => 'Жами қарздорлик',
+        };
+
+        return view('transactions.debts-sheet', [
+            'contracts'     => $mapped,
+            'total'         => $total,
+            'grandPlan'     => $this->formatNumber($grandPlan, 2),
+            'grandFact'     => $this->formatNumber($grandFact, 2),
+            'grandDebt'     => $this->formatNumber($grandDebt, 2),
+            'grandUnoverdueDebt' => $this->formatNumber($grandUnoverdueDebt, 2),
+            'grandTotalDebt'=> $this->formatNumber($grandDebt + $grandUnoverdueDebt, 2),
+            'debtTypeLabel' => $debtTypeLabel,
+            'reportDate'    => now()->format('d.m.Y'),
+            'backUrl'       => route('debts', array_filter([
+                'status'    => $status !== 'in_progress' ? $status : null,
+                'issue'     => $issue !== 'all' ? $issue : null,
+                'debt_type' => $debtType !== 'all' ? $debtType : null,
+                'district'  => $district,
+                'search'    => $searchTerm,
+                'debtors'   => $onlyDebtors ? 1 : null,
+            ])),
+        ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
     // CONTRACT SHOW — Full details page
     // ──────────────────────────────────────────────────────────────────────
     public function contractShow(Request $request, $contractId)

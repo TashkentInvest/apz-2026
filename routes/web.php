@@ -51,6 +51,7 @@ Route::middleware('auth')->group(function () {
 
         // Debts report
         Route::get('/debts', [TransactionController::class, 'debts'])->name('debts');
+        Route::get('/debts/sheet', [TransactionController::class, 'debtsSheet'])->name('debts.sheet');
 
         // Contract detail page
         Route::get('/contracts/{contractId}', [TransactionController::class, 'contractShow'])->name('contracts.show');

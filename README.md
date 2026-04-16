@@ -127,3 +127,8 @@ Generated files:
 php artisan db:seed --class=ApzPaymentsSeeder - only payments
 php artisan db:seed --class=ApzScheduleSeeder - only schedules
 ```
+
+```
+php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
+
+```
