@@ -73,6 +73,22 @@ class ImportTransactions extends Command
         $companyIndex = $isCompactFormat ? 12 : 18;
         $minColumns = $isCompactFormat ? 13 : 19;
 
+        if ($isCompactFormat) {
+            $dateIndex = $this->findHeaderIndex($header, ['дата', 'date'], $dateIndex);
+            $idIndex = $this->findHeaderIndex($header, ['id', 'шартнома', 'contract'], $idIndex);
+            $innIndex = $this->findHeaderIndex($header, ['инн', 'inn'], $innIndex);
+            $debitIndex = $this->findHeaderIndex($header, ['дебет', 'debet'], $debitIndex);
+            $creditIndex = $this->findHeaderIndex($header, ['кредит', 'credit'], $creditIndex);
+            $purposeIndex = $this->findHeaderIndex($header, ['назначение', 'purpose'], $purposeIndex);
+            $flowIndex = $this->findHeaderIndex($header, ['поток', 'flow'], $flowIndex);
+            $monthIndex = $this->findHeaderIndex($header, ['месяц', 'month'], $monthIndex);
+            $amountIndex = $this->findHeaderIndex($header, ['сумма', 'cумма', 'amount'], $amountIndex, ['дебет', 'кредит']);
+            $districtIndex = $this->findHeaderIndex($header, ['район', 'district'], $districtIndex);
+            $typeIndex = $this->findHeaderIndex($header, ['тип', 'type'], $typeIndex);
+            $yearIndex = $this->findHeaderIndex($header, ['год', 'year'], $yearIndex);
+            $companyIndex = $this->findHeaderIndex($header, ['корхона', 'company', 'компания'], $companyIndex);
+        }
+
         $now       = date('Y-m-d H:i:s');
         $batch     = [];
         $batchSize = 200;
@@ -262,5 +278,34 @@ class ImportTransactions extends Command
         }
 
         return (float) $s;
+    }
+
+    private function findHeaderIndex(array $header, array $aliases, int $fallback, array $exclude = []): int
+    {
+        foreach ($header as $index => $label) {
+            $normalizedLabel = mb_strtolower(trim((string) $label));
+            if ($normalizedLabel === '') {
+                continue;
+            }
+
+            $isExcluded = false;
+            foreach ($exclude as $skipAlias) {
+                if (str_contains($normalizedLabel, mb_strtolower($skipAlias))) {
+                    $isExcluded = true;
+                    break;
+                }
+            }
+            if ($isExcluded) {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (str_contains($normalizedLabel, mb_strtolower($alias))) {
+                    return (int) $index;
+                }
+            }
+        }
+
+        return $fallback;
     }
 }
