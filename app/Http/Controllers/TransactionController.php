@@ -310,7 +310,7 @@ class TransactionController extends Controller
         $perPage  = 25;
         $offset   = ($page - 1) * $perPage;
 
-        $cacheKey = 'apz_summary2_v2_' . md5(
+        $cacheKey = 'apz_summary2_v3_' . md5(
             ($district ?? 'all') . '|' .
             $status . '|' .
             $issue . '|' .
@@ -498,7 +498,7 @@ class TransactionController extends Controller
         $page        = max(1, (int) $request->get('page', 1));
         $perPage     = 25;
 
-        $cacheKey = 'apz_debts_v7_' . md5(
+        $cacheKey = 'apz_debts_v8_' . md5(
             $status . '|' .
             $issue . '|' .
             $debtType . '|' .
@@ -740,7 +740,7 @@ class TransactionController extends Controller
         $searchTerm    = $request->filled('search') ? trim((string) $request->search) : null;
         $onlyDebtors   = (int) $request->get('debtors', 0) === 1;
 
-        $cacheKey = 'apz_debts_v7_' . md5(
+        $cacheKey = 'apz_debts_v8_' . md5(
             $status . '|' . $issue . '|' . $debtType . '|' .
             ($district ?? 'all') . '|' . mb_strtolower($searchTerm ?? '') . '|' .
             ($onlyDebtors ? 'debtors' : 'all')
@@ -1783,7 +1783,8 @@ class TransactionController extends Controller
         $advancePercent = $this->extractInitialPaymentPercent($paymentTerms);
         $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
         $factAfterAdvance = max($fact - min($fact, $advanceAmount), 0.0);
-        $planDueToday = $this->resolvePlanAmountByToday($plan, $scheduleRaw, $paymentTerms, $contractDate);
+        $planDueTodayRaw = $this->resolvePlanAmountByToday($plan, $scheduleRaw, $paymentTerms, $contractDate);
+        $planDueToday = max($planDueTodayRaw - $advanceAmount, 0.0);
         $overdueDebt = max($planDueToday - $factAfterAdvance, 0.0);
         $totalDebt = max($plan - $fact, 0.0);
         $unoverdueDebt = max($totalDebt - $overdueDebt, 0.0);

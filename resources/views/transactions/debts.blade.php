@@ -156,7 +156,7 @@
         <div class="row g-3 mb-4 no-print formula-grid">
             <div class="col-md-3">
                 <div class="formula-card">
-                    <div class="k">График тўлов (сана &lt; бугун)</div>
+                    <div class="k">График тўлов (сана &lt; бугун) - АВАНС = График тўлов</div>
                     <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
                 </div>
             </div>
@@ -168,7 +168,7 @@
             </div>
             <div class="col-md-3">
                 <div class="formula-card is-debt">
-                    <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                    <div class="k">Қарздорлик = (График тўлов (сана &lt; бугун) - АВАНС) - График факт тўлов</div>
                     <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
                 </div>
             </div>

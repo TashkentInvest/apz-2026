@@ -163,7 +163,7 @@
             </div>
             <div class="formula-card">
                 <div class="t">3-блок</div>
-                <div class="k">График тўлов (сана &lt; бугун)</div>
+                <div class="k">График тўлов (сана &lt; бугун) - АВАНС = График тўлов</div>
                 <div class="v">= {{ $contract['plan_due_today_mln'] }}</div>
             </div>
             <div class="formula-card">
@@ -173,7 +173,7 @@
             </div>
             <div class="formula-card">
                 <div class="t">5-блок</div>
-                <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                <div class="k">Қарздорлик = (График тўлов (сана &lt; бугун) - АВАНС) - График факт тўлов</div>
                 <div class="v">= {{ $contract['debt_mln'] }}</div>
             </div>
         </div>
