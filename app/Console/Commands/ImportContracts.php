@@ -63,11 +63,15 @@ class ImportContracts extends Command
             return self::FAILURE;
         }
 
-        // Monthly date headers start at index 24
-        $dateHeaders = [];
-        for ($i = 24; $i < count($header); $i++) {
-            $dateHeaders[$i] = trim($header[$i]);
-        }
+        $idxContractId = $this->findColumnIndex($header, ['id'], 0);
+        $idxContractValue = $this->findColumnIndex($header, ['shartnoma qiymati', 'contract value'], 21);
+        $idxContractDate = $this->findColumnIndex($header, ['shartnoma sana', 'contract date'], 19);
+        $idxContractNumber = $this->findColumnIndex($header, ['shartnoma nomer', 'contract number'], 18);
+        $idxPaymentTerms = $this->findColumnIndex($header, ["to'lov shart", 'payment terms'], 22);
+        $idxInstallments = $this->findColumnIndex($header, ['reja-jadval', 'installments'], 23);
+
+        // Only real schedule date columns (e.g. 30.04.24, 31.05.24, ...)
+        $dateHeaders = $this->extractScheduleDateColumns($header);
 
         $now     = date('Y-m-d H:i:s');
         $batch   = [];
@@ -82,7 +86,7 @@ class ImportContracts extends Command
                 continue;
             }
 
-            $contractId = (int) trim($row[0] ?? 0);
+            $contractId = (int) trim($row[$idxContractId] ?? 0);
             if ($contractId === 0) {
                 $skipped++;
                 continue;
@@ -117,12 +121,12 @@ class ImportContracts extends Command
                 'inn'                 => mb_substr(trim($row[15] ?? ''), 0, 50),
                 'phone'               => mb_substr(trim($row[16] ?? ''), 0, 50),
                 'investor_address'    => mb_substr(trim($row[17] ?? ''), 0, 1000),
-                'contract_number'     => mb_substr(trim($row[18] ?? ''), 0, 100),
-                'contract_date'       => $this->parseDate(trim($row[19] ?? '')),
+                'contract_number'     => mb_substr(trim($row[$idxContractNumber] ?? ''), 0, 100),
+                'contract_date'       => $this->parseDate(trim($row[$idxContractDate] ?? '')),
                 'contract_status'     => mb_substr(trim($row[20] ?? ''), 0, 100),
-                'contract_value'      => $this->parseAmount($row[21] ?? ''),
-                'payment_terms'       => $this->normalizePaymentTerms($row[22] ?? ''),
-                'installments_count'  => (int) trim($row[23] ?? 0),
+                'contract_value'      => $this->parseAmount($row[$idxContractValue] ?? ''),
+                'payment_terms'       => $this->normalizePaymentTerms($row[$idxPaymentTerms] ?? ''),
+                'installments_count'  => (int) trim($row[$idxInstallments] ?? 0),
                 'payment_schedule'    => json_encode($schedule),
                 'created_at'          => $now,
                 'updated_at'          => $now,
@@ -229,5 +233,82 @@ class ImportContracts extends Command
         }
 
         return mb_substr($raw, 0, 50);
+    }
+
+    private function findColumnIndex(array $header, array $aliases, int $fallback): int
+    {
+        foreach ($header as $index => $name) {
+            $normalized = mb_strtolower(trim((string) $name));
+            if ($normalized === '') {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (str_contains($normalized, mb_strtolower($alias))) {
+                    return (int) $index;
+                }
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function extractScheduleDateColumns(array $header): array
+    {
+        $result = [];
+
+        foreach ($header as $index => $name) {
+            $raw = trim((string) $name);
+            if ($raw === '') {
+                continue;
+            }
+
+            if (!preg_match('/^\d{1,2}\.\d{1,2}\.\d{2,4}$/', $raw)) {
+                continue;
+            }
+
+            $normalized = $this->normalizeScheduleHeaderDate($raw);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $result[$index] = $normalized;
+        }
+
+        return $result;
+    }
+
+    private function normalizeScheduleHeaderDate(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{1,2})\.(\d{1,2})\.(\d{2})$/', $value, $m)) {
+            $day = (int) $m[1];
+            $month = (int) $m[2];
+            $year = 2000 + (int) $m[3];
+
+            if (checkdate($month, $day, $year)) {
+                return sprintf('%02d.%02d.%04d', $day, $month, $year);
+            }
+        }
+
+        foreach (['d.m.Y', 'j.n.Y', 'd.m.y', 'j.n.y'] as $format) {
+            try {
+                $date = \Carbon\CarbonImmutable::createFromFormat($format, $value);
+                if ($date !== false) {
+                    if ((int) $date->format('Y') < 1900 && preg_match('/\.\d{2}$/', $value)) {
+                        $date = $date->addYears(2000);
+                    }
+                    return $date->format('d.m.Y');
+                }
+            } catch (\Throwable $e) {
+                continue;
+            }
+        }
+
+        return null;
     }
 }

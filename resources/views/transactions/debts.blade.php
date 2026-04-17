@@ -130,7 +130,7 @@
         </div>
 
         <div class="col-md-2">
-            <div class="grand-stat">
+            <div class="grand-stat">    
                 <div class="val {{ $summaryStats['overall_pct_class'] }}">{{ $summaryStats['overall_pct'] }}</div>
                 <div class="lbl">Бажарилиш фоизи</div>
             </div>
@@ -142,16 +142,7 @@
     <div class="formula-wrap no-print">
         <div class="block-title" style="margin-top:0;">График бўйича тўловлар</div>
         <div class="formula-grid">
-            <div class="formula-card">
-                <div class="t">1-блок</div>
-                <div class="k">Қолдиқ қиймат = (Шартнома қиймати - Аванс - Факт тўлов) - (Шартнома қиймати - Факт тўлов)</div>
-                <div class="v">= {{ $summaryStats['grand_total_debt_mln'] }}</div>
-            </div>
-            <div class="formula-card">
-                <div class="t">2-блок</div>
-                <div class="k">Шартнома қиймати - Факт тўлов</div>
-                <div class="v">= {{ $summaryStats['grand_total_debt_mln'] }}</div>
-            </div>
+           
             <div class="formula-card">
                 <div class="t">3-блок</div>
                 <div class="k">График тўлов (сана &lt; бугун)</div>
