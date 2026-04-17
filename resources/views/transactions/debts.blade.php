@@ -102,61 +102,45 @@
     </div>
 
     <div class="row g-3 mb-4 no-print">
-        <div class="col-md-3">
+        <div class="col-md-1">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['total_contracts'] }}</div>
-                <div class="lbl">Жами шартномалар</div>
+                <div class="lbl">Жами</div>
             </div>
         </div>
         <div class="col-md-3">
             <div class="grand-stat">
                 <div class="val">{{ $summaryStats['grand_plan_mln'] }}</div>
-                <div class="lbl">Жами шартнома қиймати (сўм)</div>
+                <div class="lbl">Жами тўлов суммаси</div>
+            </div>
+        </div>
+           <div class="col-md-3">
+            <div class="grand-stat">
+                <div class="val txt-good">{{ $summaryStats['grand_fact_mln'] }}</div>
+                <div class="lbl">Жами тўланган сумма</div>
             </div>
         </div>
         <div class="col-md-3">
             <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null, 'debt_type' => 'overdue'])) }}" target="_blank" style="text-decoration:none;">
             <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
-                <div class="val debt-red-strong">{{ $summaryStats['grand_debt_mln'] }}</div>
-                <div class="lbl">Муддати ўтган қарздорлик (сўм) ↗</div>
+                <div class="val debt-red-strong" style="color:#c02050 !important;">{{ $summaryStats['grand_debt_mln'] }}</div>
+                <div class="lbl">Қолдиқ сумма</div>
             </div>
             </a>
         </div>
-        <div class="col-md-3">
-            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null, 'debt_type' => 'unoverdue'])) }}" target="_blank" style="text-decoration:none;">
-            <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
-                <div class="val debt-red-soft">{{ $summaryStats['grand_unoverdue_debt_mln'] }}</div>
-                <div class="lbl">Муддати келмаган қарздорлик (сўм) ↗</div>
-            </div>
-            </a>
-        </div>
-    </div>
 
-    <div class="row g-3 mb-4 no-print">
-        <div class="col-md-4">
-            <div class="grand-stat">
-                <div class="val txt-good">{{ $summaryStats['grand_fact_mln'] }}</div>
-                <div class="lbl">Жами факт тўлов (сўм)</div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null])) }}" target="_blank" style="text-decoration:none;">
-            <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
-                <div class="val debt-red-strong">{{ $summaryStats['grand_total_debt_mln'] }}</div>
-                <div class="lbl">Жами қарздорлик (умумий, сўм) ↗</div>
-            </div>
-            </a>
-        </div>
-        <div class="col-md-4">
+        <div class="col-md-2">
             <div class="grand-stat">
                 <div class="val {{ $summaryStats['overall_pct_class'] }}">{{ $summaryStats['overall_pct'] }}</div>
                 <div class="lbl">Бажарилиш фоизи</div>
             </div>
         </div>
+  
     </div>
 
+
     <div class="formula-wrap no-print">
-        <div class="block-title" style="margin-top:0;">Ҳисоблаш босқичлари (жами)</div>
+        <div class="block-title" style="margin-top:0;">График бўйича тўловлар</div>
         <div class="formula-grid">
             <div class="formula-card">
                 <div class="t">1-блок</div>
