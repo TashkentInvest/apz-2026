@@ -619,6 +619,12 @@ class TransactionController extends Controller
         $overallPctClass = $overallPctValue >= 100
             ? 'txt-good'
             : ($overallPctValue >= 60 ? 'txt-pending' : 'txt-danger');
+        $scheduleProgressPctValue = $grandPlanDueToday > 0
+            ? round(($grandFactAfterAdvance / $grandPlanDueToday) * 100, 1)
+            : 0.0;
+        $scheduleProgressPctClass = $scheduleProgressPctValue >= 100
+            ? 'txt-good'
+            : ($scheduleProgressPctValue >= 60 ? 'txt-pending' : 'txt-danger');
         $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : null;
 
         $paginationQuery = [
@@ -647,6 +653,8 @@ class TransactionController extends Controller
                 'grand_debt_mln' => $this->formatNumber($grandDebt, 2),
                 'grand_unoverdue_debt_mln' => $this->formatNumber($grandUnoverdueDebt, 2),
                 'grand_total_debt_mln' => $this->formatNumber($grandTotalDebt, 2),
+                'schedule_progress_pct' => $this->formatNumber($scheduleProgressPctValue, 1) . '%',
+                'schedule_progress_pct_class' => $scheduleProgressPctClass,
                 'overall_pct' => $this->formatNumber($overallPctValue, 1) . '%',
                 'overall_pct_class' => $overallPctClass,
             ],

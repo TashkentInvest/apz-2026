@@ -59,17 +59,15 @@
     .debt-red-soft { color:#d84343; }
     .link-clean { color:#018c87; text-decoration:none; }
     .block-title { font-size:.86rem; font-weight:700; color:#015c58; margin:12px 0 8px; }
-    .formula-wrap { border:1px solid #e7ecec; border-radius:10px; padding:10px 12px; background:#fcfefe; margin:0 0 14px; }
-    .formula-grid {
-        display:grid;
-        grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-        gap:10px;
-    }
+    .formula-wrap { margin:0 0 14px; }
+    .formula-grid { margin-top:8px; }
     .formula-card {
-        border:1px solid #dfe9ea;
+        border:1px solid #e0e0e0;
         border-radius:10px;
         background:#fff;
-        padding:10px 12px;
+        padding:16px 20px;
+        text-align:center;
+        height:100%;
     }
     .formula-card .t { font-size:.73rem; color:#6e788b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
     .formula-card .k { font-size:.8rem; color:#1f2b43; line-height:1.45; }
@@ -141,27 +139,34 @@
 
     <div class="formula-wrap no-print">
         <div class="block-title" style="margin-top:0;">График бўйича тўловлар</div>
-        <div class="formula-grid">
-           
-            <div class="formula-card">
-                <div class="t">3-блок</div>
-                <div class="k">График тўлов (сана &lt; бугун)</div>
-                <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
+        <div class="row g-3 mb-4 no-print formula-grid">
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="t">3-блок</div>
+                    <div class="k">График тўлов (сана &lt; бугун)</div>
+                    <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
+                </div>
             </div>
-            <div class="formula-card">
-                <div class="t">4-блок</div>
-                <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
-                <div class="v">= {{ $summaryStats['grand_fact_wo_advance_mln'] }}</div>
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="t">4-блок</div>
+                    <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
+                    <div class="v">= {{ $summaryStats['grand_fact_wo_advance_mln'] }}</div>
+                </div>
             </div>
-            <div class="formula-card">
-                <div class="t">5-блок</div>
-                <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
-                <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="t">5-блок</div>
+                    <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                    <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+                </div>
             </div>
-            <div class="formula-card">
-                <div class="t">6-блок</div>
-                <div class="k">Бажарилиш фоизи</div>
-                <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="t">6-блок</div>
+                    <div class="k">Бажарилиш фоизи (график бўйича)</div>
+                    <div class="v {{ $summaryStats['schedule_progress_pct_class'] }}">= {{ $summaryStats['schedule_progress_pct'] }}</div>
+                </div>
             </div>
         </div>
     </div>
