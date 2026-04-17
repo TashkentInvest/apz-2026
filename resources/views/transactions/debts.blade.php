@@ -69,9 +69,23 @@
         text-align:center;
         height:100%;
     }
-    .formula-card .t { font-size:.73rem; color:#6e788b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
-    .formula-card .k { font-size:.8rem; color:#1f2b43; line-height:1.45; }
-    .formula-card .v { margin-top:8px; font-size:.94rem; font-weight:700; color:#015c58; }
+    .formula-card .t {
+        font-size:.68rem; color:#7f8a9b; text-transform:uppercase; letter-spacing:.08em;
+        margin-bottom:8px; font-weight:700;
+    }
+    .formula-card .k {
+        font-size:.72rem; color:#6e788b; text-transform:uppercase; letter-spacing:.05em;
+        line-height:1.35; min-height:34px;
+    }
+    .formula-card .v {
+        margin-top:10px; font-size:1.25rem; font-weight:800; color:#018c87;
+    }
+    .formula-card.is-debt {
+        border-color:#efb6b6;
+        background:linear-gradient(180deg, #fff6f6 0%, #fff 100%);
+    }
+    .formula-card.is-debt .v { color:#c62828; }
+    .formula-card.is-pct .v { font-size:1.35rem; }
 
     .pg-wrap { display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:16px; }
     .pg-btn {
@@ -119,9 +133,9 @@
             </div>
         </div>
         <div class="col-md-3">
-            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null, 'debt_type' => 'overdue'])) }}" target="_blank" style="text-decoration:none;">
+            <a href="{{ route('debts.sheet', array_filter(['status' => $selectedStatus, 'issue' => $selectedIssue !== 'all' ? $selectedIssue : null, 'district' => $selectedDistrict, 'search' => $searchTerm, 'debtors' => $onlyDebtors ? 1 : null])) }}" target="_blank" style="text-decoration:none;">
             <div class="grand-stat debt-card" style="cursor:pointer;" title="Рўйхатни кўриш">
-                <div class="val debt-red-strong" style="color:#c02050 !important;">{{ $summaryStats['grand_debt_mln'] }}</div>
+                <div class="val debt-red-strong" style="color:#c02050 !important;">{{ $summaryStats['grand_total_debt_mln'] }}</div>
                 <div class="lbl">Қолдиқ сумма</div>
             </div>
             </a>
@@ -142,28 +156,24 @@
         <div class="row g-3 mb-4 no-print formula-grid">
             <div class="col-md-3">
                 <div class="formula-card">
-                    <div class="t">3-блок</div>
                     <div class="k">График тўлов (сана &lt; бугун)</div>
                     <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
                 </div>
             </div>
             <div class="col-md-3">
                 <div class="formula-card">
-                    <div class="t">4-блок</div>
                     <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
                     <div class="v">= {{ $summaryStats['grand_fact_wo_advance_mln'] }}</div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="formula-card">
-                    <div class="t">5-блок</div>
+                <div class="formula-card is-debt">
                     <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
                     <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="formula-card">
-                    <div class="t">6-блок</div>
+                <div class="formula-card is-pct">
                     <div class="k">Бажарилиш фоизи (график бўйича)</div>
                     <div class="v {{ $summaryStats['schedule_progress_pct_class'] }}">= {{ $summaryStats['schedule_progress_pct'] }}</div>
                 </div>
