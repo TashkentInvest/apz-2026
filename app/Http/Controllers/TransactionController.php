@@ -500,6 +500,9 @@ class TransactionController extends Controller
             $grandFact = 0;
             $grandDebt = 0;
             $grandUnoverdueDebt = 0;
+            $grandAdvance = 0;
+            $grandFactAfterAdvance = 0;
+            $grandPlanDueToday = 0;
             $preparedContracts = [];
 
             foreach ($contracts as $contract) {
@@ -512,6 +515,9 @@ class TransactionController extends Controller
                 );
                 $plan = $metrics['plan'];
                 $fact = $metrics['fact'];
+                $advanceAmount = (float) ($metrics['advance_amount'] ?? 0.0);
+                $factAfterAdvance = (float) ($metrics['fact_after_advance'] ?? 0.0);
+                $planDueToday = (float) ($metrics['plan_due_today'] ?? 0.0);
                 $diff = $metrics['diff'];
 
                 $contract->status_key      = $this->normalizeContractStatus($contract->contract_status ?? null);
@@ -541,6 +547,7 @@ class TransactionController extends Controller
                 $contract->debt            = $overdueDebt;
                 $contract->overdue_debt    = $overdueDebt;
                 $contract->unoverdue_debt  = $unoverdueDebt;
+                $contract->remaining_value = (float) ($metrics['remaining_value'] ?? max($plan - $fact, 0.0));
                 $contract->plan_fact_diff  = $diff;
 
                 $totalDebt = $overdueDebt + $unoverdueDebt;
@@ -555,6 +562,9 @@ class TransactionController extends Controller
                 $grandFact += $fact;
                 $grandDebt += $overdueDebt;
                 $grandUnoverdueDebt += $unoverdueDebt;
+                $grandAdvance += $advanceAmount;
+                $grandFactAfterAdvance += $factAfterAdvance;
+                $grandPlanDueToday += $planDueToday;
             }
 
             $contracts = $preparedContracts;
@@ -566,7 +576,17 @@ class TransactionController extends Controller
                 ->pluck('district')
                 ->toArray();
 
-            return compact('contracts', 'grandPlan', 'grandFact', 'grandDebt', 'grandUnoverdueDebt', 'availableDistricts');
+            return compact(
+                'contracts',
+                'grandPlan',
+                'grandFact',
+                'grandDebt',
+                'grandUnoverdueDebt',
+                'grandAdvance',
+                'grandFactAfterAdvance',
+                'grandPlanDueToday',
+                'availableDistricts'
+            );
         });
 
         if ($this->isXlsxExportRequest($request)) {
@@ -591,6 +611,9 @@ class TransactionController extends Controller
         $grandFact = (float) ($allData['grandFact'] ?? 0);
         $grandDebt = (float) ($allData['grandDebt'] ?? 0);
         $grandUnoverdueDebt = (float) ($allData['grandUnoverdueDebt'] ?? 0);
+        $grandAdvance = (float) ($allData['grandAdvance'] ?? 0);
+        $grandFactAfterAdvance = (float) ($allData['grandFactAfterAdvance'] ?? 0);
+        $grandPlanDueToday = (float) ($allData['grandPlanDueToday'] ?? 0);
         $grandTotalDebt = max($grandDebt + $grandUnoverdueDebt, 0);
         $overallPctValue = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : 0.0;
         $overallPctClass = $overallPctValue >= 100
@@ -618,6 +641,9 @@ class TransactionController extends Controller
                 'total_contracts' => $this->formatNumber($total),
                 'grand_plan_mln' => $this->formatNumber($grandPlan, 2),
                 'grand_fact_mln' => $this->formatNumber($grandFact, 2),
+                'grand_advance_mln' => $this->formatNumber($grandAdvance, 2),
+                'grand_fact_wo_advance_mln' => $this->formatNumber($grandFactAfterAdvance, 2),
+                'grand_plan_due_today_mln' => $this->formatNumber($grandPlanDueToday, 2),
                 'grand_debt_mln' => $this->formatNumber($grandDebt, 2),
                 'grand_unoverdue_debt_mln' => $this->formatNumber($grandUnoverdueDebt, 2),
                 'grand_total_debt_mln' => $this->formatNumber($grandTotalDebt, 2),
@@ -629,6 +655,7 @@ class TransactionController extends Controller
                 'fact_mln' => $this->formatNumber($grandFact, 2),
                 'debt_mln' => $this->formatNumber($grandDebt, 2),
                 'unoverdue_debt_mln' => $this->formatNumber($grandUnoverdueDebt, 2),
+                'qoldiq_mln' => $this->formatNumber($grandTotalDebt, 2),
                 'diff_mln' => $this->formatNumber(($grandPlan - $grandFact), 2),
                 'diff_class' => $this->completionBandClass($grandPct),
             ],
@@ -789,6 +816,7 @@ class TransactionController extends Controller
         );
         $plan     = $metrics['plan'];
         $fact     = $metrics['fact'];
+        $factAfterAdvance = (float) ($metrics['fact_after_advance'] ?? 0.0);
 
         $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
         $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
@@ -799,8 +827,8 @@ class TransactionController extends Controller
 
         $backUrl = $request->filled('back') ? (string) $request->back : null;
 
-        $advancePercent = $this->extractInitialPaymentPercent($contract->payment_terms ?? null);
-        $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
+        $advancePercent = (float) ($metrics['advance_percent'] ?? 0.0);
+        $advanceAmount = (float) ($metrics['advance_amount'] ?? 0.0);
         $advancePercentDecimals = abs($advancePercent - floor($advancePercent)) < 0.00001 ? 0 : 2;
         $advanceLabel = $advancePercent > 0
             ? $this->formatNumber($advancePercent, $advancePercentDecimals) . '% · ' . $this->formatNumber($advanceAmount, 2)
@@ -808,7 +836,7 @@ class TransactionController extends Controller
 
         $scheduleRows = [];
         $scheduleEditorRows = [];
-        $remainingFactForSchedule = $fact;
+        $remainingFactForSchedule = $factAfterAdvance;
         $today = \Carbon\CarbonImmutable::today();
 
         foreach ($payload['schedule'] as $index => $row) {
@@ -919,8 +947,12 @@ class TransactionController extends Controller
                 'issue_class' => str_replace('issue-', 'is-', $this->issueClass($issueKey)),
                 'plan_mln' => $this->formatNumber($plan, 2),
                 'advance_label' => $advanceLabel,
+                'advance_amount_mln' => $this->formatNumber($advanceAmount, 2),
                 'fact_mln' => $this->formatNumber($fact, 2),
-                'debt_mln' => $this->formatNumber(((float) ($contract->debt ?? 0)), 2),
+                'fact_without_advance_mln' => $this->formatNumber($factAfterAdvance, 2),
+                'plan_due_today_mln' => $this->formatNumber((float) ($metrics['plan_due_today'] ?? 0.0), 2),
+                'debt_mln' => $this->formatNumber((float) ($metrics['overdue_debt'] ?? 0.0), 2),
+                'qoldiq_mln' => $this->formatNumber((float) ($metrics['remaining_value'] ?? 0.0), 2),
                 'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),
             ],
             'scheduleRows' => $scheduleRows,
@@ -1408,6 +1440,7 @@ class TransactionController extends Controller
             $debt = (float) ($contract->debt ?? 0);
             $overdueDebt = (float) ($contract->overdue_debt ?? $debt);
             $unoverdueDebt = (float) ($contract->unoverdue_debt ?? max(($plan - $fact) - $overdueDebt, 0.0));
+            $remainingValue = max((float) ($contract->remaining_value ?? ($plan - $fact)), 0.0);
             $diff = (float) ($contract->plan_fact_diff ?? 0);
             $pct = $plan > 0 ? round(($fact / $plan) * 100, 1) : null;
 
@@ -1428,6 +1461,7 @@ class TransactionController extends Controller
                 'fact_mln' => $fact > 0 ? $this->formatNumber($fact, 2) : '—',
                 'debt_mln' => $overdueDebt > 0 ? $this->formatNumber($overdueDebt, 2) : '0.00',
                 'unoverdue_debt_mln' => $unoverdueDebt > 0 ? $this->formatNumber($unoverdueDebt, 2) : '0.00',
+                'qoldiq_mln' => $this->formatNumber($remainingValue, 2),
                 'diff_mln' => $this->formatNumber($diff, 2),
                 'diff_class' => $this->completionBandClass($pct),
                 'detail_url' => route('contracts.show', ['contractId' => $contract->contract_id, 'back' => $backUrl]),
@@ -1696,8 +1730,11 @@ class TransactionController extends Controller
     {
         $plan = max((float) $contractValue, 0.0);
         $fact = max((float) $paidAmount, 0.0);
+        $advancePercent = $this->extractInitialPaymentPercent($paymentTerms);
+        $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
+        $factAfterAdvance = max($fact - min($fact, $advanceAmount), 0.0);
         $planDueToday = $this->resolvePlanAmountByToday($plan, $scheduleRaw, $paymentTerms, $contractDate);
-        $overdueDebt = max($planDueToday - $fact, 0.0);
+        $overdueDebt = max($planDueToday - $factAfterAdvance, 0.0);
         $totalDebt = max($plan - $fact, 0.0);
         $unoverdueDebt = max($totalDebt - $overdueDebt, 0.0);
         $diff = $plan - $fact;
@@ -1705,11 +1742,15 @@ class TransactionController extends Controller
         return [
             'plan' => $plan,
             'fact' => $fact,
+            'advance_percent' => $advancePercent,
+            'advance_amount' => $advanceAmount,
+            'fact_after_advance' => $factAfterAdvance,
             'plan_due_today' => $planDueToday,
             'debt' => $overdueDebt,
             'overdue_debt' => $overdueDebt,
             'unoverdue_debt' => $unoverdueDebt,
             'total_debt' => $totalDebt,
+            'remaining_value' => $totalDebt,
             'diff' => $diff,
             'pct' => $plan > 0 ? round(($fact / $plan) * 100, 1) : 0.0,
         ];
@@ -1718,11 +1759,10 @@ class TransactionController extends Controller
     private function resolvePlanAmountByToday(float $contractValue, $scheduleRaw, $paymentTerms = null, $contractDate = null): float
     {
         $today = \Carbon\CarbonImmutable::today();
-        $initialDue = $this->resolveInitialPaymentDueAmount($contractValue, $paymentTerms, $contractDate, $today);
 
         $scheduleByDate = $this->parseScheduleByDate($scheduleRaw);
         if (empty($scheduleByDate)) {
-            return max($contractValue, $initialDue);
+            return max($contractValue, 0.0);
         }
 
         $planDueToday = 0.0;
@@ -1757,10 +1797,6 @@ class TransactionController extends Controller
             $planDueToday = max($contractValue, $planDueToday);
         } elseif ($latestDueDate->lessThan($today) && $contractValue > $planDueToday) {
             $planDueToday = $contractValue;
-        }
-
-        if ($initialDue > $planDueToday) {
-            $planDueToday = $initialDue;
         }
 
         if ($planDueToday <= 0.0) {

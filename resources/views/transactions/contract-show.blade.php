@@ -46,6 +46,21 @@
     .is-unknown    { background:#f1f3f5; color:#7f8a9b; }
 
     .block-title { font-size:.86rem; font-weight:700; color:#015c58; margin:12px 0 8px; }
+    .formula-wrap { border:1px solid #e7ecec; border-radius:10px; padding:10px 12px; background:#fcfefe; margin-bottom:14px; }
+    .formula-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+        gap:10px;
+    }
+    .formula-card {
+        border:1px solid #dfe9ea;
+        border-radius:10px;
+        background:#fff;
+        padding:10px 12px;
+    }
+    .formula-card .t { font-size:.73rem; color:#6e788b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+    .formula-card .k { font-size:.8rem; color:#1f2b43; line-height:1.45; }
+    .formula-card .v { margin-top:8px; font-size:.94rem; font-weight:700; color:#015c58; }
     .tbl-wrap { overflow-x:auto; border:1px solid #e7ecec; border-radius:10px; }
     .tbl { width:100%; border-collapse:collapse; font-size:.8rem; }
     .tbl thead th {
@@ -129,8 +144,39 @@
         <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Аванс</div><div class="val" style="color:#015c58;">{{ $contract['advance_label'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
-        <div class="stat"><div class="lbl">Қарздорлик (бугунгача)</div><div class="val" style="color:#e63260;">{{ $contract['debt_mln'] }}</div></div>
-        <div class="stat"><div class="lbl">Бажарилиш</div><div class="val">{{ $contract['pct'] }}%</div></div>
+        <div class="stat"><div class="lbl">Факт тўлов (аванссиз)</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_without_advance_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Қолдиқ қиймат</div><div class="val" style="color:#e63260;">{{ $contract['qoldiq_mln'] }}</div></div>
+    </div>
+
+    <div class="formula-wrap">
+        <div class="block-title" style="margin-top:0;">Ҳисоблаш босқичлари</div>
+        <div class="formula-grid">
+            <div class="formula-card">
+                <div class="t">1-блок</div>
+                <div class="k">Қолдиқ қиймат = (Шартнома қиймати - Аванс - Факт тўлов) - (Шартнома қиймати - Факт тўлов)</div>
+                <div class="v">= {{ $contract['qoldiq_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">2-блок</div>
+                <div class="k">Шартнома қиймати - Факт тўлов</div>
+                <div class="v">= {{ $contract['qoldiq_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">3-блок</div>
+                <div class="k">График тўлов (сана &lt; бугун)</div>
+                <div class="v">= {{ $contract['plan_due_today_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">4-блок</div>
+                <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
+                <div class="v">= {{ $contract['fact_without_advance_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">5-блок</div>
+                <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                <div class="v">= {{ $contract['debt_mln'] }}</div>
+            </div>
+        </div>
     </div>
 
     <div class="meta-grid">

@@ -58,6 +58,22 @@
     .debt-red-strong { color:#c62828; }
     .debt-red-soft { color:#d84343; }
     .link-clean { color:#018c87; text-decoration:none; }
+    .block-title { font-size:.86rem; font-weight:700; color:#015c58; margin:12px 0 8px; }
+    .formula-wrap { border:1px solid #e7ecec; border-radius:10px; padding:10px 12px; background:#fcfefe; margin:0 0 14px; }
+    .formula-grid {
+        display:grid;
+        grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+        gap:10px;
+    }
+    .formula-card {
+        border:1px solid #dfe9ea;
+        border-radius:10px;
+        background:#fff;
+        padding:10px 12px;
+    }
+    .formula-card .t { font-size:.73rem; color:#6e788b; text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; }
+    .formula-card .k { font-size:.8rem; color:#1f2b43; line-height:1.45; }
+    .formula-card .v { margin-top:8px; font-size:.94rem; font-weight:700; color:#015c58; }
 
     .pg-wrap { display:flex; align-items:center; justify-content:center; gap:6px; flex-wrap:wrap; margin-top:16px; }
     .pg-btn {
@@ -139,6 +155,37 @@
         </div>
     </div>
 
+    <div class="formula-wrap no-print">
+        <div class="block-title" style="margin-top:0;">Ҳисоблаш босқичлари (жами)</div>
+        <div class="formula-grid">
+            <div class="formula-card">
+                <div class="t">1-блок</div>
+                <div class="k">Қолдиқ қиймат = (Шартнома қиймати - Аванс - Факт тўлов) - (Шартнома қиймати - Факт тўлов)</div>
+                <div class="v">= {{ $summaryStats['grand_total_debt_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">2-блок</div>
+                <div class="k">Шартнома қиймати - Факт тўлов</div>
+                <div class="v">= {{ $summaryStats['grand_total_debt_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">3-блок</div>
+                <div class="k">График тўлов (сана &lt; бугун)</div>
+                <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">4-блок</div>
+                <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
+                <div class="v">= {{ $summaryStats['grand_fact_wo_advance_mln'] }}</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">5-блок</div>
+                <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+            </div>
+        </div>
+    </div>
+
     <form method="GET" action="{{ route('debts') }}" class="d-flex gap-2 mb-3 no-print" style="flex-wrap:wrap;">
         <select name="status" class="form-select form-select-sm" style="width:220px;" onchange="this.form.submit()">
             @foreach($statusOptions as $option)
@@ -184,7 +231,7 @@
                     <th style="width:9%;">Факт тўлаган</th>
                     <th style="width:9%;">Муддати ўтган қарздорлик</th>
                     <th style="width:9%;">Муддати келмаган қарздорлик</th>
-                    <th style="width:9%;">План-Факт фарқи</th>
+                    <th style="width:9%;">Қолдиқ қиймат</th>
                 </tr>
             </thead>
             <tbody>
@@ -195,7 +242,7 @@
                     <td class="r txt-good">{{ $summaryRow['fact_mln'] }}</td>
                     <td class="r debt-red-strong">{{ $summaryRow['debt_mln'] }}</td>
                     <td class="r debt-red-soft">{{ $summaryRow['unoverdue_debt_mln'] }}</td>
-                    <td class="r {{ $summaryRow['diff_class'] }}">{{ $summaryRow['diff_mln'] }}</td>
+                    <td class="r {{ $summaryRow['diff_class'] }}">{{ $summaryRow['qoldiq_mln'] }}</td>
                 </tr>
 
                 @foreach($contracts as $contract)
@@ -211,7 +258,7 @@
                     <td class="r txt-good">{{ $contract['fact_mln'] }}</td>
                     <td class="r debt-red-strong" style="font-weight:600;">{{ $contract['debt_mln'] }}</td>
                     <td class="r debt-red-soft" style="font-weight:600;">{{ $contract['unoverdue_debt_mln'] }}</td>
-                    <td class="r {{ $contract['diff_class'] }}">{{ $contract['diff_mln'] }}</td>
+                    <td class="r {{ $contract['diff_class'] }}">{{ $contract['qoldiq_mln'] }}</td>
                 </tr>
                 @endforeach
             </tbody>
