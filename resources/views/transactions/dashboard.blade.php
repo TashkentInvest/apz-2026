@@ -495,8 +495,7 @@
             <select name="issue" class="form-select form-select-sm" style="width:190px;" onchange="this.form.submit()">
                 <option value="all" {{ $selectedMonitoringIssue === 'all' ? 'selected' : '' }}>Муаммо: барчаси</option>
                 <option value="problem" {{ $selectedMonitoringIssue === 'problem' ? 'selected' : '' }}>Муаммоли</option>
-                <option value="no_problem" {{ $selectedMonitoringIssue === 'no_problem' ? 'selected' : '' }}>Муаммосиз</option>
-                <option value="unknown" {{ $selectedMonitoringIssue === 'unknown' ? 'selected' : '' }}>Кўрсатилмаган</option>
+                <option value="unknown" {{ $selectedMonitoringIssue === 'unknown' ? 'selected' : '' }}>Муаммосиз</option>
             </select>
             <input type="text" name="search" value="{{ $monitoringSearch }}" class="form-control form-control-sm" style="width:240px;" placeholder="Компания / шартнома / ИНН / ID">
             <button type="submit" class="platon-btn platon-btn-outline platon-btn-sm">Қидириш</button>

@@ -105,6 +105,30 @@
     .grand-stat { text-align:center; padding:16px 20px; border-radius:10px; border:1px solid #e0e0e0; }
     .grand-stat .val { font-size:1.5rem; font-weight:800; color:#018c87; }
     .grand-stat .lbl { font-size:.72rem; color:#6e788b; margin-top:4px; text-transform:uppercase; letter-spacing:.05em; }
+    .block-title { font-size:.86rem; font-weight:700; color:#015c58; margin:12px 0 8px; }
+    .formula-wrap { margin:0 0 14px; }
+    .formula-grid { margin-top:8px; }
+    .formula-card {
+        border:1px solid #e0e0e0;
+        border-radius:10px;
+        background:#fff;
+        padding:16px 20px;
+        text-align:center;
+        height:100%;
+    }
+    .formula-card .k {
+        font-size:.72rem; color:#6e788b; text-transform:uppercase; letter-spacing:.05em;
+        line-height:1.35; min-height:34px;
+    }
+    .formula-card .v {
+        margin-top:10px; font-size:1.25rem; font-weight:800; color:#018c87;
+    }
+    .formula-card.is-debt {
+        border-color:#efb6b6;
+        background:linear-gradient(180deg, #fff6f6 0%, #fff 100%);
+    }
+    .formula-card.is-debt .v { color:#c62828; }
+    .formula-card.is-pct .v { font-size:1.35rem; }
 
     .print-btn {
         display:inline-flex; align-items:center; gap:6px;
@@ -156,6 +180,36 @@
             <div class="grand-stat">
                 <div class="val {{ $summaryStats['overall_pct_class'] }}">{{ $summaryStats['overall_pct'] }}%</div>
                 <div class="lbl">Умумий бажарилиш</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="formula-wrap no-print">
+        <div class="block-title" style="margin-top:0;">График бўйича тўловлар</div>
+        <div class="row g-3 mb-4 no-print formula-grid">
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="k">График тўлов (сана &lt; бугун)</div>
+                    <div class="v">= {{ $summaryStats['grand_plan_due_today_mln'] }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="formula-card">
+                    <div class="k">График факт тўлов (Факт тўлов - Аванс)</div>
+                    <div class="v">= {{ $summaryStats['grand_fact_wo_advance_mln'] }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="formula-card is-debt">
+                    <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
+                    <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="formula-card is-pct">
+                    <div class="k">Бажарилиш фоизи (график бўйича)</div>
+                    <div class="v {{ $summaryStats['schedule_progress_pct_class'] }}">= {{ $summaryStats['schedule_progress_pct'] }}</div>
+                </div>
             </div>
         </div>
     </div>

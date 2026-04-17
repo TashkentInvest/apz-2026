@@ -310,7 +310,7 @@ class TransactionController extends Controller
         $perPage  = 25;
         $offset   = ($page - 1) * $perPage;
 
-        $cacheKey = 'apz_summary2_' . md5(
+        $cacheKey = 'apz_summary2_v2_' . md5(
             ($district ?? 'all') . '|' .
             $status . '|' .
             $issue . '|' .
@@ -358,10 +358,28 @@ class TransactionController extends Controller
                 $contract->issue_label  = $this->issueStatusLabel($contract->construction_issues ?? null);
             }
 
-            $grandPlan = $grandFact = 0;
+            $grandPlan = 0.0;
+            $grandFact = 0.0;
+            $grandDebt = 0.0;
+            $grandAdvance = 0.0;
+            $grandFactAfterAdvance = 0.0;
+            $grandPlanDueToday = 0.0;
+
             foreach ($contracts as $c) {
-                $grandPlan += (float) ($c->contract_value ?? 0);
-                $grandFact += (float) $c->total_paid;
+                $metrics = $this->calculateContractFinancials(
+                    $c->contract_value ?? 0,
+                    $c->total_paid ?? 0,
+                    $c->payment_schedule ?? null,
+                    $c->payment_terms ?? null,
+                    $c->contract_date ?? null
+                );
+
+                $grandPlan += (float) ($metrics['plan'] ?? 0.0);
+                $grandFact += (float) ($metrics['fact'] ?? 0.0);
+                $grandDebt += (float) ($metrics['overdue_debt'] ?? 0.0);
+                $grandAdvance += (float) ($metrics['advance_amount'] ?? 0.0);
+                $grandFactAfterAdvance += (float) ($metrics['fact_after_advance'] ?? 0.0);
+                $grandPlanDueToday += (float) ($metrics['plan_due_today'] ?? 0.0);
             }
 
             $availableDistricts = DB::table('apz_contracts')
@@ -371,7 +389,16 @@ class TransactionController extends Controller
                 ->pluck('district')
                 ->toArray();
 
-            return compact('contracts', 'grandPlan', 'grandFact', 'availableDistricts');
+            return compact(
+                'contracts',
+                'grandPlan',
+                'grandFact',
+                'grandDebt',
+                'grandAdvance',
+                'grandFactAfterAdvance',
+                'grandPlanDueToday',
+                'availableDistricts'
+            );
         });
 
         if ($this->isXlsxExportRequest($request)) {
@@ -392,6 +419,16 @@ class TransactionController extends Controller
 
         $grandPlan = (float) ($allData['grandPlan'] ?? 0);
         $grandFact = (float) ($allData['grandFact'] ?? 0);
+        $grandDebt = (float) ($allData['grandDebt'] ?? 0);
+        $grandAdvance = (float) ($allData['grandAdvance'] ?? 0);
+        $grandFactAfterAdvance = (float) ($allData['grandFactAfterAdvance'] ?? 0);
+        $grandPlanDueToday = (float) ($allData['grandPlanDueToday'] ?? 0);
+        $scheduleProgressPctValue = $grandPlanDueToday > 0
+            ? round(($grandFactAfterAdvance / $grandPlanDueToday) * 100, 1)
+            : 0.0;
+        $scheduleProgressPctClass = $scheduleProgressPctValue >= 100
+            ? 'txt-good'
+            : ($scheduleProgressPctValue >= 60 ? 'txt-warn' : 'txt-danger');
         $overallPct = $grandPlan > 0 ? round($grandFact / $grandPlan * 100, 1) : 0;
 
         $summaryRowBalance = $grandPlan - $grandFact;
@@ -415,6 +452,11 @@ class TransactionController extends Controller
                 'total_contracts' => $this->formatNumber($total),
                 'grand_plan_mln' => $this->formatNumber($grandPlan, 1),
                 'grand_fact_mln' => $this->formatNumber($grandFact, 1),
+                'grand_plan_due_today_mln' => $this->formatNumber($grandPlanDueToday, 2),
+                'grand_fact_wo_advance_mln' => $this->formatNumber($grandFactAfterAdvance, 2),
+                'grand_debt_mln' => $this->formatNumber($grandDebt, 2),
+                'schedule_progress_pct' => $this->formatNumber($scheduleProgressPctValue, 1) . '%',
+                'schedule_progress_pct_class' => $scheduleProgressPctClass,
                 'overall_pct' => $this->formatNumber($overallPct, 1),
                 'overall_pct_class' => $overallPct >= 100 ? 'txt-good' : 'txt-warn',
             ],
