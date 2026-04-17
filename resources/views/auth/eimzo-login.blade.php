@@ -342,8 +342,8 @@
 
                 {{-- Method tabs --}}
                 <div class="auth-tabs">
-                    <button class="auth-tab {{ $errors->has('password_login') ? 'active' : '' }}" id="tab-btn-login" onclick="switchTab('login', this)">Parol</button>
-                    <button class="auth-tab {{ !$errors->has('password_login') ? 'active' : '' }}" id="tab-btn-eri" onclick="switchTab('eri', this)">ERI</button>
+                    <button class="auth-tab active" id="tab-btn-login" onclick="switchTab('login', this)">Parol</button>
+                    <button class="auth-tab" id="tab-btn-eri" onclick="switchTab('eri', this)">ERI</button>
                 </div>
 
                 {{-- Status messages --}}
@@ -351,8 +351,8 @@
                 <div id="eimzo-message"></div>
                 <div id="eimzo-progress"></div>
 
-                {{-- ERI tab (default active) --}}
-                <div id="tab-eri" class="auth-tab-content {{ !$errors->has('password_login') ? 'active' : '' }}">
+                {{-- ERI tab --}}
+                <div id="tab-eri" class="auth-tab-content">
                     <label class="keys-list-label">ERI ni tanlang</label>
                     <div id="eimzo-keys-list">
                         <div class="keys-loader">
@@ -375,7 +375,7 @@
                 </div>
 
                 {{-- Login tab — real email/password form --}}
-                <div id="tab-login" class="auth-tab-content {{ $errors->has('password_login') ? 'active' : '' }}">
+                <div id="tab-login" class="auth-tab-content active">
                     @if($errors->has('password_login'))
                     <div style="background:#fde2e8;color:#721c24;border:1px solid #f5c6cb;border-radius:10px;padding:12px 16px;font-size:.875rem;margin-bottom:14px;">
                         {{ $errors->first('password_login') }}
@@ -404,11 +404,11 @@
                             Kirish
                         </button>
                     </form>
-                    <div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:.78rem;color:#166534;">
+                    <!-- <div style="margin-top:16px;padding:12px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;font-size:.78rem;color:#166534;">
                         <strong>Komissiya a'zolari uchun kirish ma'lumotlari:</strong><br>
                         Email: <em>kadastr@tutash.uz</em> va boshqalar<br>
                         Parol: <em>commission123</em> (standart)
-                    </div>
+                    </div> -->
                 </div>
 
 
