@@ -444,7 +444,6 @@ class TransactionController extends Controller
     // ──────────────────────────────────────────────────────────────────────
     public function debts(Request $request)
     {
-        $debugRunId = 'debts_' . uniqid();
         $statusInput = $request->filled('status') ? (string) $request->status : 'in_progress';
         $status      = $this->normalizeRequestedStatus($statusInput, 'in_progress');
         $issueInput  = $request->filled('issue') ? (string) $request->issue : 'all';
@@ -466,7 +465,7 @@ class TransactionController extends Controller
             ($onlyDebtors ? 'debtors' : 'all')
         );
 
-        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $debtType, $district, $searchTerm, $onlyDebtors, $debugRunId) {
+        $allData = Cache::remember($cacheKey, self::CACHE_REPORT, function () use ($status, $issue, $debtType, $district, $searchTerm, $onlyDebtors) {
             $where = [];
             $statusWhere = $this->buildContractStatusWhereSql($status, 'c');
             if ($statusWhere) $where[] = $statusWhere;
@@ -520,28 +519,6 @@ class TransactionController extends Controller
                 $factAfterAdvance = (float) ($metrics['fact_after_advance'] ?? 0.0);
                 $planDueToday = (float) ($metrics['plan_due_today'] ?? 0.0);
                 $diff = $metrics['diff'];
-
-                // #region agent log
-                if ((int) ($contract->contract_id ?? 0) === 1) {
-                    $decodedSchedule = is_string($contract->payment_schedule ?? null)
-                        ? json_decode((string) $contract->payment_schedule, true)
-                        : (is_array($contract->payment_schedule ?? null) ? $contract->payment_schedule : []);
-                    $this->appendDebugLog([
-                        'runId' => $debugRunId,
-                        'hypothesisId' => 'H3',
-                        'location' => 'TransactionController.php:debts.foreach',
-                        'message' => 'Debt aggregation for contract 1',
-                        'data' => [
-                            'contract_id' => (int) ($contract->contract_id ?? 0),
-                            'plan' => $plan,
-                            'fact' => $fact,
-                            'plan_due_today' => $planDueToday,
-                            'schedule_count' => is_array($decodedSchedule) ? count($decodedSchedule) : 0,
-                            'schedule_keys_sample' => is_array($decodedSchedule) ? array_slice(array_keys($decodedSchedule), 0, 8) : [],
-                        ],
-                    ]);
-                }
-                // #endregion
 
                 $contract->status_key      = $this->normalizeContractStatus($contract->contract_status ?? null);
                 $contract->status_label    = $this->contractStatusLabel($contract->contract_status ?? null);
@@ -643,25 +620,6 @@ class TransactionController extends Controller
             ? 'txt-good'
             : ($overallPctValue >= 60 ? 'txt-pending' : 'txt-danger');
         $grandPct = $grandPlan > 0 ? round(($grandFact / $grandPlan) * 100, 1) : null;
-
-        // #region agent log
-        $this->appendDebugLog([
-            'runId' => $debugRunId,
-            'hypothesisId' => 'H4',
-            'location' => 'TransactionController.php:debts.summary',
-            'message' => 'Debt summary totals built',
-            'data' => [
-                'total_contracts' => $total,
-                'grand_plan' => $grandPlan,
-                'grand_fact' => $grandFact,
-                'grand_plan_due_today' => $grandPlanDueToday,
-                'grand_fact_after_advance' => $grandFactAfterAdvance,
-                'grand_debt' => $grandDebt,
-                'grand_unoverdue_debt' => $grandUnoverdueDebt,
-                'grand_total_debt' => $grandTotalDebt,
-            ],
-        ]);
-        // #endregion
 
         $paginationQuery = [
             'status' => $status,
@@ -839,7 +797,6 @@ class TransactionController extends Controller
     // ──────────────────────────────────────────────────────────────────────
     public function contractShow(Request $request, $contractId)
     {
-        $debugRunId = 'contract_' . uniqid();
         $contractId = (int) $contractId;
         $page       = max(1, (int) $request->get('page', 1));
         $perPage    = 20;
@@ -860,31 +817,6 @@ class TransactionController extends Controller
         $plan     = $metrics['plan'];
         $fact     = $metrics['fact'];
         $factAfterAdvance = (float) ($metrics['fact_after_advance'] ?? 0.0);
-
-        // #region agent log
-        if ($contractId === 1) {
-            $decodedSchedule = is_string($contract->payment_schedule ?? null)
-                ? json_decode((string) $contract->payment_schedule, true)
-                : (is_array($contract->payment_schedule ?? null) ? $contract->payment_schedule : []);
-            $this->appendDebugLog([
-                'runId' => $debugRunId,
-                'hypothesisId' => 'H1',
-                'location' => 'TransactionController.php:contractShow.metrics',
-                'message' => 'Contract show metrics and schedule source',
-                'data' => [
-                    'contract_id' => $contractId,
-                    'plan' => $plan,
-                    'fact' => $fact,
-                    'advance_amount' => (float) ($metrics['advance_amount'] ?? 0.0),
-                    'fact_after_advance' => $factAfterAdvance,
-                    'plan_due_today' => (float) ($metrics['plan_due_today'] ?? 0.0),
-                    'schedule_count' => is_array($decodedSchedule) ? count($decodedSchedule) : 0,
-                    'schedule_keys_sample' => is_array($decodedSchedule) ? array_slice(array_keys($decodedSchedule), 0, 12) : [],
-                    'payload_schedule_rows' => is_array($payload['schedule'] ?? null) ? count($payload['schedule']) : 0,
-                ],
-            ]);
-        }
-        // #endregion
 
         $contract->status_key   = $this->normalizeContractStatus($contract->contract_status ?? null);
         $contract->status_label = $this->contractStatusLabel($contract->contract_status ?? null);
@@ -1862,20 +1794,6 @@ class TransactionController extends Controller
 
         $result = max($sum, 0.0);
 
-        // #region agent log
-        $this->appendDebugLog([
-            'runId' => 'sum_' . uniqid(),
-            'hypothesisId' => 'H2',
-            'location' => 'TransactionController.php:sumScheduleAmountsBeforeToday',
-            'message' => 'Computed due schedule sum',
-            'data' => [
-                'today' => $today->format('Y-m-d'),
-                'schedule_count' => count($scheduleByDate),
-                'due_sum' => $result,
-            ],
-        ]);
-        // #endregion
-
         return $result;
     }
 
@@ -2088,24 +2006,6 @@ class TransactionController extends Controller
         }
 
         return is_numeric($normalized) ? (float) $normalized : 0.0;
-    }
-
-    private function appendDebugLog(array $payload): void
-    {
-        try {
-            $entry = [
-                'sessionId' => '7c4f93',
-                'id' => 'log_' . uniqid(),
-                'timestamp' => (int) round(microtime(true) * 1000),
-                'runId' => (string) ($payload['runId'] ?? ''),
-                'hypothesisId' => (string) ($payload['hypothesisId'] ?? ''),
-                'location' => (string) ($payload['location'] ?? 'unknown'),
-                'message' => (string) ($payload['message'] ?? ''),
-                'data' => $payload['data'] ?? new \stdClass(),
-            ];
-            file_put_contents(base_path('debug-7c4f93.log'), json_encode($entry, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND | LOCK_EX);
-        } catch (\Throwable $e) {
-        }
     }
 
     private function flattenScheduleForExport($scheduleRaw): string

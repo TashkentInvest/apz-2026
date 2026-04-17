@@ -158,6 +158,11 @@
                 <div class="k">Қарздорлик = График тўлов (сана &lt; бугун) - График факт тўлов</div>
                 <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
             </div>
+            <div class="formula-card">
+                <div class="t">6-блок</div>
+                <div class="k">Бажарилиш фоизи</div>
+                <div class="v">= {{ $summaryStats['grand_debt_mln'] }}</div>
+            </div>
         </div>
     </div>
 
