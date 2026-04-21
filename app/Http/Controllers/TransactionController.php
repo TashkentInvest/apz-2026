@@ -887,12 +887,12 @@ class TransactionController extends Controller
         $scheduleRows = [];
         $scheduleEditorRows = [];
         $remainingFactForSchedule = $factAfterAdvance;
+        $remainingFactForDisplay = $fact;
+        $remainingAdvanceForSchedule = max((float) ($metrics['paid_advance_amount'] ?? 0.0), 0.0);
         $today = \Carbon\CarbonImmutable::today();
 
         foreach ($payload['schedule'] as $index => $row) {
             $scheduleAmount = max((float) ($row['amount'] ?? 0), 0.0);
-            $factAmount = min($scheduleAmount, max($remainingFactForSchedule, 0.0));
-            $remainingFactForSchedule = max($remainingFactForSchedule - $factAmount, 0.0);
 
             $type = 'Муддатсиз';
             $rawDate = trim((string) ($row['date'] ?? ''));
@@ -910,13 +910,24 @@ class TransactionController extends Controller
             }
 
             $isFutureSchedule = $type === 'Муддатсиз';
+            $scheduleAmountForDebt = $scheduleAmount;
+            if (!$isFutureSchedule && $remainingAdvanceForSchedule > 0.0) {
+                $advanceCoverage = min($remainingAdvanceForSchedule, $scheduleAmountForDebt);
+                $scheduleAmountForDebt = max($scheduleAmountForDebt - $advanceCoverage, 0.0);
+                $remainingAdvanceForSchedule = max($remainingAdvanceForSchedule - $advanceCoverage, 0.0);
+            }
 
-            $diffAmount = max($scheduleAmount - $factAmount, 0.0);
+            $factAmount = min($scheduleAmountForDebt, max($remainingFactForSchedule, 0.0));
+            $remainingFactForSchedule = max($remainingFactForSchedule - $factAmount, 0.0);
+            $factAmountDisplay = min($scheduleAmount, max($remainingFactForDisplay, 0.0));
+            $remainingFactForDisplay = max($remainingFactForDisplay - $factAmountDisplay, 0.0);
+
+            $diffAmount = max($scheduleAmountForDebt - $factAmount, 0.0);
             $diffPercent = null;
             $diffPercentClass = 'pct-none';
 
-            if (!$isFutureSchedule && $scheduleAmount > 0.0) {
-                $diffPercent = max(min(($factAmount / $scheduleAmount) * 100, 100), 0);
+            if (!$isFutureSchedule && $scheduleAmountForDebt > 0.0) {
+                $diffPercent = max(min(($factAmount / $scheduleAmountForDebt) * 100, 100), 0);
 
                 if ($diffPercent < 10) {
                     $diffPercentClass = 'pct-red';
@@ -943,7 +954,7 @@ class TransactionController extends Controller
                 'type' => $type,
                 'date' => $row['date'] ?? '—',
                 'schedule_amount' => $this->formatNumber($scheduleAmount, 2),
-                'fact_amount' => $this->formatNumber($factAmount, 2),
+                'fact_amount' => $this->formatNumber($factAmountDisplay, 2),
                 'diff_amount' => $this->formatNumber($diffAmount, 2),
                 'diff_class' => $diffClass,
                 'diff_pct' => $diffPercent === null ? '—' : $this->formatNumber($diffPercent, 1) . '%',
@@ -1782,9 +1793,10 @@ class TransactionController extends Controller
         $fact = max((float) $paidAmount, 0.0);
         $advancePercent = $this->extractInitialPaymentPercent($paymentTerms);
         $advanceAmount = $plan > 0 ? ($plan * $advancePercent) / 100 : 0.0;
-        $factAfterAdvance = max($fact - min($fact, $advanceAmount), 0.0);
+        $paidAdvanceAmount = min($fact, $advanceAmount);
+        $factAfterAdvance = max($fact - $paidAdvanceAmount, 0.0);
         $planDueTodayRaw = $this->resolvePlanAmountByToday($plan, $scheduleRaw, $paymentTerms, $contractDate);
-        $planDueToday = max($planDueTodayRaw - $advanceAmount, 0.0);
+        $planDueToday = max($planDueTodayRaw - $paidAdvanceAmount, 0.0);
         $overdueDebt = max($planDueToday - $factAfterAdvance, 0.0);
         $totalDebt = max($plan - $fact, 0.0);
         $unoverdueDebt = max($totalDebt - $overdueDebt, 0.0);
@@ -1795,6 +1807,7 @@ class TransactionController extends Controller
             'fact' => $fact,
             'advance_percent' => $advancePercent,
             'advance_amount' => $advanceAmount,
+            'paid_advance_amount' => $paidAdvanceAmount,
             'fact_after_advance' => $factAfterAdvance,
             'plan_due_today' => $planDueToday,
             'debt' => $overdueDebt,

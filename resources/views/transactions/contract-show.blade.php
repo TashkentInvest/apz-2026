@@ -153,7 +153,7 @@
         <div class="formula-grid">
             <div class="formula-card">
                 <div class="t">1-блок</div>
-                <div class="k">Қолдиқ қиймат = (Шартнома қиймати - Аванс - Факт тўлов) - (Шартнома қиймати - Факт тўлов)</div>
+                <div class="k">Қолдиқ қиймат = Шартнома қиймати - Факт тўлов</div>
                 <div class="v">= {{ $contract['qoldiq_mln'] }}</div>
             </div>
             <div class="formula-card">
@@ -270,8 +270,8 @@
                     <th>Тури</th>
                     <th>График санаси</th>
                     <th>График суммаси</th>
-                    <th>Факт сумма</th>
-                    <th>График ва факт фарқи</th>
+                    <th>Факт сумма (тўланган)</th>
+                    <th>Қарздорлик фарқи (аванс ҳисобга олинган)</th>
                     <th>%</th>
                 </tr>
             </thead>
