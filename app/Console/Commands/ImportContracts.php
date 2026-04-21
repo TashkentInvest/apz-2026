@@ -77,6 +77,17 @@ class ImportContracts extends Command
         $batch   = [];
         $count   = 0;
         $skipped = 0;
+        $useFresh = (bool) $this->option('fresh');
+        $existingContractMap = [];
+
+        if (!$useFresh) {
+            $existingContractMap = DB::table('apz_contracts')
+                ->whereNotNull('contract_id')
+                ->pluck('contract_id')
+                ->map(static fn ($id) => (int) $id)
+                ->flip()
+                ->toArray();
+        }
 
         $this->info('Importing APZ contracts...');
 
@@ -102,7 +113,7 @@ class ImportContracts extends Command
                 }
             }
 
-            $batch[] = [
+            $record = [
                 'contract_id'         => $contractId,
                 'district'            => mb_substr(trim($row[1] ?? ''), 0, 100),
                 'mfy'                 => mb_substr(trim($row[2] ?? ''), 0, 255),
@@ -131,6 +142,18 @@ class ImportContracts extends Command
                 'created_at'          => $now,
                 'updated_at'          => $now,
             ];
+
+            if ($useFresh || !isset($existingContractMap[$contractId])) {
+                $batch[] = $record;
+                $existingContractMap[$contractId] = true;
+            } else {
+                $updatePayload = $record;
+                unset($updatePayload['created_at']);
+
+                DB::table('apz_contracts')
+                    ->where('contract_id', $contractId)
+                    ->update($updatePayload);
+            }
 
             $count++;
 
