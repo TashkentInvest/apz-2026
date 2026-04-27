@@ -109,10 +109,14 @@
     .pg-btn.active { background:#018c87; border-color:#018c87; color:#fff; pointer-events:none; }
     .pg-btn.disabled { opacity:.4; pointer-events:none; }
 
+    .print-only-meta { display:none; }
+    .meta .fld { margin-top:6px; }
+    .meta .fld, .print-only-meta .val { width:100%; }
     @media print {
         .platon-header,.platon-aside,.no-print { display:none !important; }
         .platon-main { margin-left:0 !important; }
         .report-wrap { box-shadow:none; border:none; }
+        .print-only-meta { display:grid !important; }
     }
 </style>
 @endpush
@@ -125,6 +129,11 @@
     @if(session('error'))
         <div class="platon-alert platon-alert-danger no-print" style="margin-bottom:12px;">✗ {{ session('error') }}</div>
     @endif
+    @if($errors->any())
+        <div class="platon-alert platon-alert-danger no-print" style="margin-bottom:12px;">
+            {{ $errors->first() }}
+        </div>
+    @endif
 
     <div class="report-head no-print">
         <div>
@@ -133,7 +142,7 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <a href="{{ $backUrl }}" class="platon-btn platon-btn-outline platon-btn-sm">← Орқага</a>
-            @if($canEditSchedule)
+            @if($canEditContract)
                 <button type="button" id="schedule-edit-toggle" class="platon-btn platon-btn-outline platon-btn-sm">Тўлов жадвалини таҳрирлаш</button>
             @endif
             <button type="button" onclick="window.print()" class="platon-btn platon-btn-primary platon-btn-sm">Чоп</button>
@@ -144,6 +153,7 @@
         <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Аванс</div><div class="val" style="color:#015c58;">{{ $contract['advance_label'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Пеня тўловлар</div><div class="val" style="color:#b58900;">{{ $contract['penalty_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов (аванссиз)</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_without_advance_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Қолдиқ қиймат</div><div class="val" style="color:#e63260;">{{ $contract['qoldiq_mln'] }}</div></div>
     </div>
@@ -179,8 +189,119 @@
         </div>
     </div>
 
+    @if($canEditContract)
+    @php
+        $d = $contractFormDefaults;
+        $ov = function (string $key) use ($d) { return old($key, $d[$key] ?? ''); };
+    @endphp
+    <form method="POST" action="{{ route('contracts.update', ['contractId' => $contract['contract_id']]) }}" class="no-print" style="margin-bottom:0;">
+        @csrf
+        <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+        <input type="hidden" name="page" value="{{ request('page', 1) }}">
+        <div class="block-title" style="margin-top:0;">Реквизитлар (таҳрирлаш)</div>
+        <div class="meta-grid">
+            <div class="meta"><div class="lbl">ID</div><div class="val" style="padding-top:6px;">{{ $contract['contract_id'] }}</div></div>
+            <div class="meta">
+                <div class="lbl">Шартнома рақами</div>
+                <input type="text" name="contract_number" class="schedule-input fld" value="{{ $ov('contract_number') }}" maxlength="100" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Инвестор</div>
+                <input type="text" name="investor_name" class="schedule-input fld" value="{{ $ov('investor_name') }}" maxlength="255" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Туман</div>
+                <input type="text" name="district" class="schedule-input fld" value="{{ $ov('district') }}" maxlength="100" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">МФЙ</div>
+                <input type="text" name="mfy" class="schedule-input fld" value="{{ $ov('mfy') }}" maxlength="255" autocomplete="off">
+            </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Манзил</div>
+                <textarea name="address" class="schedule-input fld" rows="2" style="resize:vertical;min-height:48px;" maxlength="10000">{{ $ov('address') }}</textarea>
+            </div>
+            <div class="meta">
+                <div class="lbl">Қурилиш ҳажми (м³)</div>
+                <input type="number" name="build_volume" class="schedule-input fld" value="{{ $ov('build_volume') !== '' ? $ov('build_volume') : '' }}" step="0.01" min="0" placeholder="0.00" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Коэффицент</div>
+                <input type="text" name="coefficient" class="schedule-input fld" value="{{ $ov('coefficient') }}" maxlength="50" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Зона</div>
+                <input type="text" name="zone" class="schedule-input fld" value="{{ $ov('zone') }}" maxlength="50" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Рухсатнома</div>
+                <input type="text" name="permit" class="schedule-input fld" value="{{ $ov('permit') }}" maxlength="100" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">АПЗ номер</div>
+                <input type="text" name="apz_number" class="schedule-input fld" value="{{ $ov('apz_number') }}" maxlength="100" autocomplete="off">
+            </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Кенгаш хулосаси</div>
+                <input type="text" name="council_decision" class="schedule-input fld" value="{{ $ov('council_decision') }}" maxlength="255" autocomplete="off">
+            </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Экспертиза хулосаси</div>
+                <input type="text" name="expertise" class="schedule-input fld" value="{{ $ov('expertise') }}" maxlength="255" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">ИНН</div>
+                <input type="text" name="inn" class="schedule-input fld" value="{{ $ov('inn') }}" maxlength="50" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Шартнома санаси</div>
+                <input type="date" name="contract_date" class="schedule-input fld" value="{{ $ov('contract_date') }}" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Ҳолат</div>
+                <select name="contract_status" class="schedule-input fld">
+                    @php $st = old('contract_status', $d['contract_status'] ?? 'in_progress'); @endphp
+                    <option value="in_progress" @selected($st === 'in_progress')>Амалдаги</option>
+                    <option value="completed" @selected($st === 'completed')>Якунланган</option>
+                    <option value="cancelled" @selected($st === 'cancelled')>Бекор қилинган</option>
+                </select>
+            </div>
+            <div class="meta">
+                <div class="lbl">Қурилиш ҳолати</div>
+                <select name="construction_issue" class="schedule-input fld">
+                    @php $is = old('construction_issue', $d['construction_issue'] ?? 'unknown'); @endphp
+                    <option value="unknown" @selected($is === 'unknown')>— (кўрсатилмаган)</option>
+                    <option value="no_problem" @selected($is === 'no_problem')>Муаммосиз</option>
+                    <option value="problem" @selected($is === 'problem')>Муаммоли</option>
+                </select>
+            </div>
+        </div>
+        <div class="schedule-actions" style="margin-top:0;margin-bottom:12px;">
+            <button type="submit" class="platon-btn platon-btn-primary platon-btn-sm">Реквизитларни сақлаш</button>
+        </div>
+    </form>
+    <div class="print-only-meta meta-grid" aria-hidden="true">
+        <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
+        <div class="meta"><div class="lbl">№ / Инвестор</div><div class="val">{{ $contract['contract_number'] }} · {{ $contract['investor_name'] }}</div></div>
+        <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
+        <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
+        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
+        <div class="meta"><div class="lbl">Қурилиш ҳажми</div><div class="val">{{ $contract['build_volume'] }}</div></div>
+        <div class="meta"><div class="lbl">Коэффицент</div><div class="val">{{ $contract['coefficient'] }}</div></div>
+        <div class="meta"><div class="lbl">Зона</div><div class="val">{{ $contract['zone'] }}</div></div>
+        <div class="meta"><div class="lbl">Рухсатнома</div><div class="val">{{ $contract['permit'] }}</div></div>
+        <div class="meta"><div class="lbl">АПЗ номер</div><div class="val">{{ $contract['apz_number'] }}</div></div>
+        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Кенгаш хулосаси</div><div class="val">{{ $contract['council_decision'] }}</div></div>
+        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Экспертиза хулосаси</div><div class="val">{{ $contract['expertise'] }}</div></div>
+        <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
+        <div class="meta"><div class="lbl">Шартнома санаси</div><div class="val">{{ $contract['contract_date'] }}</div></div>
+        <div class="meta"><div class="lbl">Ҳолат</div><div class="val"><span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
+        <div class="meta"><div class="lbl">Қурилиш ҳолати</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
+    </div>
+    @else
     <div class="meta-grid">
         <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
+        <div class="meta"><div class="lbl">№ / Инвестор</div><div class="val">{{ $contract['contract_number'] }} · {{ $contract['investor_name'] }}</div></div>
         <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
         <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
         <div class="meta"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
@@ -196,10 +317,11 @@
         <div class="meta"><div class="lbl">Ҳолат</div><div class="val"><span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
         <div class="meta"><div class="lbl">Қурилиш ҳолати</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
     </div>
+    @endif
 
     <div class="block-title">Тўлов жадвали</div>
 
-    @if($canEditSchedule)
+    @if($canEditContract)
         @php
             $scheduleEditorInputRows = old('schedule');
             if (!is_array($scheduleEditorInputRows) || empty($scheduleEditorInputRows)) {

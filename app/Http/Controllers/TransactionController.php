@@ -984,6 +984,15 @@ class TransactionController extends Controller
         $statusKey = (string) ($contract->status_key ?? 'in_progress');
         $issueKey = (string) ($contract->issue_key ?? 'unknown');
 
+        $contractDateInput = '';
+        if (!empty($contract->contract_date)) {
+            try {
+                $contractDateInput = \Carbon\CarbonImmutable::parse($contract->contract_date)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $contractDateInput = '';
+            }
+        }
+
         return view('transactions.contract-show', [
             'reportDate' => now()->format('d.m.Y'),
             'contract' => [
@@ -1004,17 +1013,40 @@ class TransactionController extends Controller
                 'contract_date' => $this->formatDate($contract->contract_date ?? null),
                 'status_label' => $contract->status_label ?? 'Амалдаги',
                 'status_class' => $this->statusClass($statusKey, 'st-inprogress'),
+                'status_key' => $statusKey,
                 'issue_label' => $contract->issue_label ?? '—',
                 'issue_class' => str_replace('issue-', 'is-', $this->issueClass($issueKey)),
+                'issue_key' => $issueKey,
                 'plan_mln' => $this->formatNumber($plan, 2),
                 'advance_label' => $advanceLabel,
                 'advance_amount_mln' => $this->formatNumber($advanceAmount, 2),
                 'fact_mln' => $this->formatNumber($fact, 2),
+                'penalty_mln' => $this->formatNumber((float) ($contract->penalty_paid ?? 0.0), 2),
                 'fact_without_advance_mln' => $this->formatNumber($factAfterAdvance, 2),
                 'plan_due_today_mln' => $this->formatNumber((float) ($metrics['plan_due_today'] ?? 0.0), 2),
                 'debt_mln' => $this->formatNumber((float) ($metrics['overdue_debt'] ?? 0.0), 2),
                 'qoldiq_mln' => $this->formatNumber((float) ($metrics['remaining_value'] ?? 0.0), 2),
                 'pct' => $this->formatNumber((float) ($contract->pct ?? 0), 1),
+            ],
+            'contractFormDefaults' => [
+                'contract_number' => (string) ($contract->contract_number ?? ''),
+                'investor_name' => (string) ($contract->investor_name ?? ''),
+                'district' => (string) ($contract->district ?? ''),
+                'mfy' => (string) ($contract->mfy ?? ''),
+                'address' => (string) ($contract->address ?? ''),
+                'build_volume' => $contract->build_volume === null
+                    ? ''
+                    : (string) number_format((float) $contract->build_volume, 2, '.', ''),
+                'coefficient' => (string) ($contract->coefficient ?? ''),
+                'zone' => (string) ($contract->zone ?? ''),
+                'permit' => (string) ($contract->permit ?? ''),
+                'apz_number' => (string) ($contract->apz_number ?? ''),
+                'council_decision' => (string) ($contract->council_decision ?? ''),
+                'expertise' => (string) ($contract->expertise ?? ''),
+                'inn' => (string) ($contract->inn ?? ''),
+                'contract_date' => $contractDateInput,
+                'contract_status' => $statusKey,
+                'construction_issue' => $issueKey,
             ],
             'scheduleRows' => $scheduleRows,
             'scheduleEditorRows' => $scheduleEditorRows,
@@ -1022,7 +1054,7 @@ class TransactionController extends Controller
             'total' => (int) ($payload['total'] ?? 0),
             'lastPage' => (int) ($payload['last_page'] ?? 1),
             'backUrl' => $backUrl ?: route('summary2'),
-            'canEditSchedule' => $this->canEditContractSchedule($request->user()),
+            'canEditContract' => $this->canEditContractSchedule($request->user()),
             'pagination' => $this->buildContractPagination((int) ($contract->contract_id ?? 0), $backUrl, (int) $payload['page'], (int) $payload['last_page']),
         ]);
     }
@@ -1117,6 +1149,106 @@ class TransactionController extends Controller
             ->with('success', 'Тўлов жадвали янгиланди.');
     }
 
+    public function updateContractShow(Request $request, $contractId)
+    {
+        if (!$this->canEditContractSchedule($request->user())) {
+            abort(403, 'Forbidden');
+        }
+
+        $contractId = (int) $contractId;
+
+        $contractExists = DB::table('apz_contracts')
+            ->where('contract_id', $contractId)
+            ->exists();
+
+        if (!$contractExists) {
+            abort(404);
+        }
+
+        $merge = $request->all();
+        if (array_key_exists('build_volume', $merge) && $merge['build_volume'] === '') {
+            $merge['build_volume'] = null;
+        }
+        $request->merge($merge);
+
+        $validated = $request->validate([
+            'contract_number' => 'nullable|string|max:100',
+            'investor_name' => 'nullable|string|max:255',
+            'district' => 'nullable|string|max:100',
+            'mfy' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:10000',
+            'build_volume' => 'nullable|numeric|min:0',
+            'coefficient' => 'nullable|string|max:50',
+            'zone' => 'nullable|string|max:50',
+            'permit' => 'nullable|string|max:100',
+            'apz_number' => 'nullable|string|max:100',
+            'council_decision' => 'nullable|string|max:255',
+            'expertise' => 'nullable|string|max:255',
+            'inn' => 'nullable|string|max:50',
+            'contract_date' => 'nullable|date',
+            'contract_status' => 'required|in:in_progress,completed,cancelled',
+            'construction_issue' => 'required|in:unknown,problem,no_problem',
+        ], [], [
+            'contract_number' => 'шартнома рақами',
+        ]);
+
+        $buildVolumeDb = isset($validated['build_volume']) && $validated['build_volume'] !== null
+            ? (float) $validated['build_volume']
+            : null;
+
+        $contractDate = !empty($validated['contract_date'])
+            ? $validated['contract_date']
+            : null;
+
+        $statusDb = match ($validated['contract_status']) {
+            'completed' => 'Якунланган',
+            'cancelled' => 'Бекор қилинган',
+            default => 'Амалдаги',
+        };
+
+        $issueDb = match ($validated['construction_issue']) {
+            'problem' => 'Муаммоли',
+            'no_problem' => 'Муаммосиз',
+            default => null,
+        };
+
+        DB::table('apz_contracts')
+            ->where('contract_id', $contractId)
+            ->update([
+                'contract_number' => $validated['contract_number'] ?: null,
+                'investor_name' => $validated['investor_name'] ?: null,
+                'district' => $validated['district'] ?: null,
+                'mfy' => $validated['mfy'] ?: null,
+                'address' => $validated['address'] ?: null,
+                'build_volume' => $buildVolumeDb,
+                'coefficient' => $validated['coefficient'] ?: null,
+                'zone' => $validated['zone'] ?: null,
+                'permit' => $validated['permit'] ?: null,
+                'apz_number' => $validated['apz_number'] ?: null,
+                'council_decision' => $validated['council_decision'] ?: null,
+                'expertise' => $validated['expertise'] ?: null,
+                'inn' => $validated['inn'] ?: null,
+                'contract_date' => $contractDate,
+                'contract_status' => $statusDb,
+                'construction_issues' => $issueDb,
+                'updated_at' => now(),
+            ]);
+
+        $routeParams = ['contractId' => $contractId];
+        $page = max(1, (int) $request->input('page', 1));
+        if ($page > 1) {
+            $routeParams['page'] = $page;
+        }
+        $back = trim((string) $request->input('back', ''));
+        if ($back !== '') {
+            $routeParams['back'] = $back;
+        }
+
+        return redirect()
+            ->route('contracts.show', $routeParams)
+            ->with('success', 'Шартнома реквизитлари сақланди.');
+    }
+
     private function canEditContractSchedule($user): bool
     {
         if (!$user) {
@@ -1203,11 +1335,19 @@ class TransactionController extends Controller
         $contract = DB::selectOne(
             "SELECT c.*,
                     COALESCE(agg.total_paid, 0)     as total_paid,
+                    COALESCE(agg.penalty_paid, 0)  as penalty_paid,
                     COALESCE(agg.payment_count, 0)  as payment_count
              FROM apz_contracts c
              LEFT JOIN (
                  SELECT contract_id,
-                        SUM(CASE WHEN flow='Приход' THEN amount ELSE 0 END) as total_paid,
+                        SUM(CASE
+                            WHEN flow='Приход' AND TRIM(IFNULL(type, '')) <> 'Пеня тўлови' THEN amount
+                            ELSE 0
+                        END) as total_paid,
+                        SUM(CASE
+                            WHEN flow='Приход' AND TRIM(IFNULL(type, '')) = 'Пеня тўлови' THEN amount
+                            ELSE 0
+                        END) as penalty_paid,
                         COUNT(*) as payment_count
                  FROM apz_payments
                  WHERE contract_id = ?
