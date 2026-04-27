@@ -153,9 +153,9 @@
         <div class="stat"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['plan_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Аванс</div><div class="val" style="color:#015c58;">{{ $contract['advance_label'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
-        <div class="stat"><div class="lbl">Пеня тўловлар</div><div class="val" style="color:#b58900;">{{ $contract['penalty_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов (аванссиз)</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_without_advance_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Қолдиқ қиймат</div><div class="val" style="color:#e63260;">{{ $contract['qoldiq_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Пеня тўловлар</div><div class="val" style="color:#b58900;">{{ $contract['penalty_mln'] }}</div></div>
     </div>
 
     <div class="formula-wrap">
