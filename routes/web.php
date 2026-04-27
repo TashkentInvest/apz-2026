@@ -55,7 +55,11 @@ Route::middleware('auth')->group(function () {
 
         // Contract detail page
         Route::get('/contracts/{contractId}', [TransactionController::class, 'contractShow'])->name('contracts.show');
+        Route::get('/contracts/{contractId}/files/{attachmentId}/download', [TransactionController::class, 'downloadContractAttachment'])->name('contracts.file.download');
         Route::post('/contracts/{contractId}', [TransactionController::class, 'updateContractShow'])->name('contracts.update');
+        Route::post('/contracts/{contractId}/file/contract', [TransactionController::class, 'uploadContractFile'])->name('contracts.file.contract');
+        Route::post('/contracts/{contractId}/files/other', [TransactionController::class, 'uploadOtherFiles'])->name('contracts.files.other');
+        Route::post('/contract-attachments/{attachmentId}/delete', [TransactionController::class, 'deleteContractAttachment'])->name('contract-attachments.delete');
         Route::post('/contracts/{contractId}/schedule', [TransactionController::class, 'updateContractSchedule'])->name('contracts.schedule.update');
 
         // Modal AJAX endpoints

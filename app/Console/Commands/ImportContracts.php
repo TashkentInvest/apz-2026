@@ -69,6 +69,8 @@ class ImportContracts extends Command
         $idxContractNumber = $this->findColumnIndex($header, ['shartnoma nomer', 'contract number'], 18);
         $idxPaymentTerms = $this->findColumnIndex($header, ["to'lov shart", 'payment terms'], 22);
         $idxInstallments = $this->findColumnIndex($header, ['reja-jadval', 'installments'], 23);
+        $idxDemandNumber = $this->findColumnIndex($header, ['talabnoma nomer', 'talabnoma', 'demand number'], 24);
+        $idxDemandDate = $this->findColumnIndex($header, ['talabnoma sana', 'demand date'], 25);
 
         // Only real schedule date columns (e.g. 30.04.24, 31.05.24, ...)
         $dateHeaders = $this->extractScheduleDateColumns($header);
@@ -138,6 +140,8 @@ class ImportContracts extends Command
                 'contract_value'      => $this->parseAmount($row[$idxContractValue] ?? ''),
                 'payment_terms'       => $this->normalizePaymentTerms($row[$idxPaymentTerms] ?? ''),
                 'installments_count'  => (int) trim($row[$idxInstallments] ?? 0),
+                'demand_letter_number' => mb_substr(trim($row[$idxDemandNumber] ?? ''), 0, 100),
+                'demand_letter_date'  => $this->parseDate(trim($row[$idxDemandDate] ?? '')),
                 'payment_schedule'    => json_encode($schedule),
                 'created_at'          => $now,
                 'updated_at'          => $now,

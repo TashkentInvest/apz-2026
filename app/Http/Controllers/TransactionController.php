@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApzContractAttachment;
 use App\Services\SimpleXlsxExportService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class TransactionController extends Controller
@@ -993,12 +995,56 @@ class TransactionController extends Controller
             }
         }
 
+        $demandLetterDateInput = '';
+        if (isset($contract->demand_letter_date) && $contract->demand_letter_date !== null && $contract->demand_letter_date !== '') {
+            try {
+                $demandLetterDateInput = \Carbon\CarbonImmutable::parse($contract->demand_letter_date)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $demandLetterDateInput = '';
+            }
+        }
+
+        $contractIdInt = (int) ($contract->contract_id ?? 0);
+        $attachmentRows = ApzContractAttachment::query()
+            ->where('contract_id', $contractIdInt)
+            ->orderBy('id')
+            ->get();
+        $contractFileModel = $attachmentRows->firstWhere('file_role', ApzContractAttachment::ROLE_CONTRACT);
+        $otherAttachmentRows = $attachmentRows->where('file_role', ApzContractAttachment::ROLE_OTHER)->values();
+        $contractFileView = null;
+        if ($contractFileModel) {
+            $contractFileView = [
+                'id' => (int) $contractFileModel->id,
+                'name' => $contractFileModel->original_name,
+                'size' => $this->formatFileSize((int) $contractFileModel->size),
+                'url' => route('contracts.file.download', [
+                    'contractId' => $contractIdInt,
+                    'attachmentId' => $contractFileModel->id,
+                ]),
+            ];
+        }
+        $otherFilesView = $otherAttachmentRows->map(function ($row) use ($contractIdInt) {
+            return [
+                'id' => (int) $row->id,
+                'name' => $row->original_name,
+                'size' => $this->formatFileSize((int) $row->size),
+                'url' => route('contracts.file.download', [
+                    'contractId' => $contractIdInt,
+                    'attachmentId' => $row->id,
+                ]),
+            ];
+        })->all();
+
         return view('transactions.contract-show', [
             'reportDate' => now()->format('d.m.Y'),
             'contract' => [
-                'contract_id' => (int) ($contract->contract_id ?? 0),
+                'contract_id' => $contractIdInt,
                 'contract_number' => $contract->contract_number ?: (string) ($contract->contract_id ?? '—'),
                 'investor_name' => $contract->investor_name ?: '—',
+                'phone' => $contract->phone ?: '—',
+                'investor_address' => $contract->investor_address ?: '—',
+                'client_type' => $contract->client_type ?: '—',
+                'object_type' => $contract->object_type ?: '—',
                 'district' => $contract->district ?: '—',
                 'mfy' => $contract->mfy ?: '—',
                 'address' => $contract->address ?: '—',
@@ -1010,6 +1056,15 @@ class TransactionController extends Controller
                 'council_decision' => $contract->council_decision ?: '—',
                 'expertise' => $contract->expertise ?: '—',
                 'inn' => $contract->inn ?: '—',
+                'contract_value_display' => $contract->contract_value !== null
+                    ? $this->formatNumber((float) $contract->contract_value, 2)
+                    : '—',
+                'payment_terms' => $contract->payment_terms ?: '—',
+                'installments_count' => $contract->installments_count !== null
+                    ? (string) (int) $contract->installments_count
+                    : '—',
+                'demand_letter_number' => $contract->demand_letter_number ?: '—',
+                'demand_letter_date' => $this->formatDate($contract->demand_letter_date ?? null),
                 'contract_date' => $this->formatDate($contract->contract_date ?? null),
                 'status_label' => $contract->status_label ?? 'Амалдаги',
                 'status_class' => $this->statusClass($statusKey, 'st-inprogress'),
@@ -1031,6 +1086,19 @@ class TransactionController extends Controller
             'contractFormDefaults' => [
                 'contract_number' => (string) ($contract->contract_number ?? ''),
                 'investor_name' => (string) ($contract->investor_name ?? ''),
+                'phone' => (string) ($contract->phone ?? ''),
+                'investor_address' => (string) ($contract->investor_address ?? ''),
+                'client_type' => (string) ($contract->client_type ?? ''),
+                'object_type' => (string) ($contract->object_type ?? ''),
+                'contract_value' => $contract->contract_value === null
+                    ? ''
+                    : (string) number_format((float) $contract->contract_value, 2, '.', ''),
+                'payment_terms' => (string) ($contract->payment_terms ?? ''),
+                'installments_count' => $contract->installments_count === null
+                    ? ''
+                    : (string) (int) $contract->installments_count,
+                'demand_letter_number' => (string) ($contract->demand_letter_number ?? ''),
+                'demand_letter_date' => $demandLetterDateInput,
                 'district' => (string) ($contract->district ?? ''),
                 'mfy' => (string) ($contract->mfy ?? ''),
                 'address' => (string) ($contract->address ?? ''),
@@ -1048,6 +1116,8 @@ class TransactionController extends Controller
                 'contract_status' => $statusKey,
                 'construction_issue' => $issueKey,
             ],
+            'contractFile' => $contractFileView,
+            'otherFiles' => $otherFilesView,
             'scheduleRows' => $scheduleRows,
             'scheduleEditorRows' => $scheduleEditorRows,
             'payments' => $this->mapContractPaymentsForView($payload['payments'], (int) $payload['page'], (int) $payload['per_page']),
@@ -1166,14 +1236,25 @@ class TransactionController extends Controller
         }
 
         $merge = $request->all();
-        if (array_key_exists('build_volume', $merge) && $merge['build_volume'] === '') {
-            $merge['build_volume'] = null;
+        foreach (['build_volume', 'contract_value', 'installments_count'] as $k) {
+            if (array_key_exists($k, $merge) && $merge[$k] === '') {
+                $merge[$k] = null;
+            }
         }
         $request->merge($merge);
 
         $validated = $request->validate([
             'contract_number' => 'nullable|string|max:100',
             'investor_name' => 'nullable|string|max:255',
+            'phone' => 'nullable|string|max:50',
+            'investor_address' => 'nullable|string|max:10000',
+            'object_type' => 'nullable|string|max:255',
+            'client_type' => 'nullable|string|max:255',
+            'contract_value' => 'nullable|numeric|min:0',
+            'payment_terms' => 'nullable|string|max:50',
+            'installments_count' => 'nullable|integer|min:0',
+            'demand_letter_number' => 'nullable|string|max:100',
+            'demand_letter_date' => 'nullable|date',
             'district' => 'nullable|string|max:100',
             'mfy' => 'nullable|string|max:255',
             'address' => 'nullable|string|max:10000',
@@ -1196,8 +1277,20 @@ class TransactionController extends Controller
             ? (float) $validated['build_volume']
             : null;
 
+        $contractValueDb = isset($validated['contract_value']) && $validated['contract_value'] !== null
+            ? (float) $validated['contract_value']
+            : null;
+
+        $installmentsDb = array_key_exists('installments_count', $validated) && $validated['installments_count'] !== null
+            ? (int) $validated['installments_count']
+            : null;
+
         $contractDate = !empty($validated['contract_date'])
             ? $validated['contract_date']
+            : null;
+
+        $demandLetterDate = !empty($validated['demand_letter_date'])
+            ? $validated['demand_letter_date']
             : null;
 
         $statusDb = match ($validated['contract_status']) {
@@ -1212,11 +1305,22 @@ class TransactionController extends Controller
             default => null,
         };
 
+        $paymentTermsDb = $this->normalizeContractPaymentTermsForDb($validated['payment_terms'] ?? null);
+
         DB::table('apz_contracts')
             ->where('contract_id', $contractId)
             ->update([
                 'contract_number' => $validated['contract_number'] ?: null,
                 'investor_name' => $validated['investor_name'] ?: null,
+                'phone' => $validated['phone'] ?: null,
+                'investor_address' => $validated['investor_address'] ?: null,
+                'object_type' => $validated['object_type'] ?: null,
+                'client_type' => $validated['client_type'] ?: null,
+                'contract_value' => $contractValueDb,
+                'payment_terms' => $paymentTermsDb,
+                'installments_count' => $installmentsDb,
+                'demand_letter_number' => $validated['demand_letter_number'] ?: null,
+                'demand_letter_date' => $demandLetterDate,
                 'district' => $validated['district'] ?: null,
                 'mfy' => $validated['mfy'] ?: null,
                 'address' => $validated['address'] ?: null,
@@ -1247,6 +1351,155 @@ class TransactionController extends Controller
         return redirect()
             ->route('contracts.show', $routeParams)
             ->with('success', 'Шартнома реквизитлари сақланди.');
+    }
+
+    public function uploadContractFile(Request $request, $contractId)
+    {
+        if (!$this->canEditContractSchedule($request->user())) {
+            abort(403, 'Forbidden');
+        }
+
+        $contractId = (int) $contractId;
+        if (!DB::table('apz_contracts')->where('contract_id', $contractId)->exists()) {
+            abort(404);
+        }
+
+        $request->validate([
+            'file' => 'required|file|max:25600',
+        ]);
+
+        $file = $request->file('file');
+        $original = (string) $file->getClientOriginalName();
+        if ($original === '') {
+            $original = 'document';
+        }
+        if (mb_strlen($original) > 200) {
+            $original = mb_substr($original, 0, 200);
+        }
+
+        $path = $file->store("contract_attachments/{$contractId}", 'local');
+
+        ApzContractAttachment::query()
+            ->where('contract_id', $contractId)
+            ->where('file_role', ApzContractAttachment::ROLE_CONTRACT)
+            ->get()
+            ->each(function (ApzContractAttachment $old) {
+                if ($old->stored_path && Storage::disk('local')->exists($old->stored_path)) {
+                    Storage::disk('local')->delete($old->stored_path);
+                }
+                $old->delete();
+            });
+
+        ApzContractAttachment::query()->create([
+            'contract_id' => $contractId,
+            'file_role' => ApzContractAttachment::ROLE_CONTRACT,
+            'stored_path' => $path,
+            'original_name' => $original,
+            'mime' => $file->getMimeType(),
+            'size' => (int) $file->getSize(),
+        ]);
+
+        $routeParams = $this->contractShowReturnParams($request, $contractId);
+
+        return redirect()->route('contracts.show', $routeParams)->with('success', 'Шартнома файли сақланди (аввалги алмаштирилди).');
+    }
+
+    public function uploadOtherFiles(Request $request, $contractId)
+    {
+        if (!$this->canEditContractSchedule($request->user())) {
+            abort(403, 'Forbidden');
+        }
+
+        $contractId = (int) $contractId;
+        if (!DB::table('apz_contracts')->where('contract_id', $contractId)->exists()) {
+            abort(404);
+        }
+
+        $request->validate([
+            'files' => 'required|array|max:20',
+            'files.*' => 'file|max:25600',
+        ]);
+
+        foreach ($request->file('files', []) as $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+            $original = (string) $file->getClientOriginalName();
+            if ($original === '') {
+                $original = 'file';
+            }
+            if (mb_strlen($original) > 200) {
+                $original = mb_substr($original, 0, 200);
+            }
+            $path = $file->store("contract_attachments/{$contractId}", 'local');
+            ApzContractAttachment::query()->create([
+                'contract_id' => $contractId,
+                'file_role' => ApzContractAttachment::ROLE_OTHER,
+                'stored_path' => $path,
+                'original_name' => $original,
+                'mime' => $file->getMimeType(),
+                'size' => (int) $file->getSize(),
+            ]);
+        }
+
+        $routeParams = $this->contractShowReturnParams($request, $contractId);
+
+        return redirect()->route('contracts.show', $routeParams)->with('success', 'Файл(лар) сақланди.');
+    }
+
+    public function deleteContractAttachment(Request $request, $attachmentId)
+    {
+        if (!$this->canEditContractSchedule($request->user())) {
+            abort(403, 'Forbidden');
+        }
+
+        $id = (int) $attachmentId;
+        $row = ApzContractAttachment::query()->where('id', $id)->first();
+        if (!$row) {
+            abort(404);
+        }
+
+        $contractId = (int) $row->contract_id;
+        if ($row->stored_path && Storage::disk('local')->exists($row->stored_path)) {
+            Storage::disk('local')->delete($row->stored_path);
+        }
+        $row->delete();
+
+        $routeParams = $this->contractShowReturnParams($request, $contractId);
+
+        return redirect()->route('contracts.show', $routeParams)->with('success', 'Файл ўчирилди.');
+    }
+
+    public function downloadContractAttachment(Request $request, $contractId, $attachmentId)
+    {
+        $contractId = (int) $contractId;
+        $attachmentId = (int) $attachmentId;
+        $row = ApzContractAttachment::query()
+            ->where('id', $attachmentId)
+            ->where('contract_id', $contractId)
+            ->firstOrFail();
+        if (!$row->stored_path || !Storage::disk('local')->exists($row->stored_path)) {
+            abort(404, 'Fayl topilmadi');
+        }
+
+        return Storage::disk('local')->download($row->stored_path, $row->original_name, [
+            'Content-Type' => $row->mime ?: 'application/octet-stream',
+        ]);
+    }
+
+    private function contractShowReturnParams(Request $request, int $contractId): array
+    {
+        $routeParams = ['contractId' => $contractId];
+        $page = max(1, (int) $request->input('page', 1));
+        if ($page > 1) {
+            $routeParams['page'] = $page;
+        }
+        $back = trim((string) $request->input('back', ''));
+        if ($back !== '') {
+            $routeParams['back'] = $back;
+        }
+
+        return $routeParams;
     }
 
     private function canEditContractSchedule($user): bool
@@ -1414,6 +1667,42 @@ class TransactionController extends Controller
     private function formatNumber($value, int $decimals = 0): string
     {
         return number_format((float) $value, $decimals, '.', ' ');
+    }
+
+    private function formatFileSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return (string) $bytes . ' B';
+        }
+        if ($bytes < 1048576) {
+            return (string) round($bytes / 1024, 1) . ' KB';
+        }
+
+        return (string) round($bytes / 1048576, 2) . ' MB';
+    }
+
+    private function normalizeContractPaymentTermsForDb(?string $value): ?string
+    {
+        $raw = trim((string) $value);
+        if ($raw === '' || $raw === '-' || $raw === ' - ') {
+            return null;
+        }
+
+        $raw = preg_replace('/\s+/u', '', $raw);
+        $raw = str_replace('%', '', $raw);
+
+        if (preg_match('/^([0-9]+(?:[\.,][0-9]+)?)\/([0-9]+(?:[\.,][0-9]+)?)$/u', $raw, $m)) {
+            $first = str_replace(',', '.', $m[1]);
+            $second = str_replace(',', '.', $m[2]);
+
+            return $first . '/' . $second;
+        }
+
+        if (preg_match('/^[0-9]+(?:[\.,][0-9]+)?$/u', $raw)) {
+            return str_replace(',', '.', $raw);
+        }
+
+        return mb_substr($raw, 0, 50);
     }
 
     private function formatDate(?string $date): string

@@ -36,15 +36,18 @@ class ApzContract extends Model
         'contract_value',
         'payment_terms',
         'installments_count',
+        'demand_letter_number',
+        'demand_letter_date',
         'payment_schedule',
     ];
 
     protected $casts = [
-        'contract_date'      => 'date',
-        'contract_value'     => 'decimal:2',
-        'build_volume'       => 'decimal:2',
-        'installments_count' => 'integer',
-        'payment_schedule'   => 'array',
+        'contract_date'       => 'date',
+        'contract_value'      => 'decimal:2',
+        'build_volume'        => 'decimal:2',
+        'installments_count'  => 'integer',
+        'demand_letter_date'  => 'date',
+        'payment_schedule'    => 'array',
     ];
 
     public function payments()

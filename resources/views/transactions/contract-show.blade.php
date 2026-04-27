@@ -116,7 +116,7 @@
         .platon-header,.platon-aside,.no-print { display:none !important; }
         .platon-main { margin-left:0 !important; }
         .report-wrap { box-shadow:none; border:none; }
-        .print-only-meta { display:grid !important; }
+        .print-only-meta { display:block !important; }
     }
 </style>
 @endpush
@@ -198,7 +198,8 @@
         @csrf
         <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
         <input type="hidden" name="page" value="{{ request('page', 1) }}">
-        <div class="block-title" style="margin-top:0;">Реквизитлар (таҳрирлаш)</div>
+        <p class="sub no-print" style="margin:0 0 8px;font-size:0.8rem;color:#6e788b;">Маълумотлар <code>grafik_apz.csv</code> структураси билан мос (импорт: <code>apz:import-contracts</code>).</p>
+        <div class="block-title" style="margin-top:0;">1. Инвестор ва шартнома</div>
         <div class="meta-grid">
             <div class="meta"><div class="lbl">ID</div><div class="val" style="padding-top:6px;">{{ $contract['contract_id'] }}</div></div>
             <div class="meta">
@@ -206,9 +207,63 @@
                 <input type="text" name="contract_number" class="schedule-input fld" value="{{ $ov('contract_number') }}" maxlength="100" autocomplete="off">
             </div>
             <div class="meta">
-                <div class="lbl">Инвестор</div>
+                <div class="lbl">Инвестор номи</div>
                 <input type="text" name="investor_name" class="schedule-input fld" value="{{ $ov('investor_name') }}" maxlength="255" autocomplete="off">
             </div>
+            <div class="meta">
+                <div class="lbl">ИНН / ПИНФЛ</div>
+                <input type="text" name="inn" class="schedule-input fld" value="{{ $ov('inn') }}" maxlength="50" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Телефон</div>
+                <input type="text" name="phone" class="schedule-input fld" value="{{ $ov('phone') }}" maxlength="50" autocomplete="off">
+            </div>
+         
+            <div class="meta">
+                <div class="lbl">Буюртмачи тури</div>
+                <input type="text" name="client_type" class="schedule-input fld" value="{{ $ov('client_type') }}" maxlength="255" placeholder="yuridik / jismoniy" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Шартнома қиймати (сўм)</div>
+                <input type="number" name="contract_value" class="schedule-input fld" value="{{ $ov('contract_value') !== '' ? $ov('contract_value') : '' }}" step="0.01" min="0" placeholder="0.00" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Тўлов шарти (мас. 40/60)</div>
+                <input type="text" name="payment_terms" class="schedule-input fld" value="{{ $ov('payment_terms') }}" maxlength="50" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Режа-миқдор (оёқлар / жадвал)</div>
+                <input type="number" name="installments_count" class="schedule-input fld" value="{{ $ov('installments_count') !== '' ? $ov('installments_count') : '' }}" min="0" step="1" placeholder="0" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Талабнома рақами</div>
+                <input type="text" name="demand_letter_number" class="schedule-input fld" value="{{ $ov('demand_letter_number') }}" maxlength="100" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Талабнома санаси</div>
+                <input type="date" name="demand_letter_date" class="schedule-input fld" value="{{ $ov('demand_letter_date') }}" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Шартнома санаси</div>
+                <input type="date" name="contract_date" class="schedule-input fld" value="{{ $ov('contract_date') }}" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Ҳолат</div>
+                <select name="contract_status" class="schedule-input fld">
+                    @php $st = old('contract_status', $d['contract_status'] ?? 'in_progress'); @endphp
+                    <option value="in_progress" @selected($st === 'in_progress')>Амалдаги</option>
+                    <option value="completed" @selected($st === 'completed')>Якунланган</option>
+                    <option value="cancelled" @selected($st === 'cancelled')>Бекор қилинган</option>
+                </select>
+            </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Инвестор манзили</div>
+                <textarea name="investor_address" class="schedule-input fld" rows="2" style="resize:vertical;min-height:44px;" maxlength="10000">{{ $ov('investor_address') }}</textarea>
+            </div>
+        </div>
+
+        <div class="block-title">2. Объект (туман, МФЙ, м³, зона)</div>
+        <div class="meta-grid">
             <div class="meta">
                 <div class="lbl">Туман</div>
                 <input type="text" name="district" class="schedule-input fld" value="{{ $ov('district') }}" maxlength="100" autocomplete="off">
@@ -217,13 +272,14 @@
                 <div class="lbl">МФЙ</div>
                 <input type="text" name="mfy" class="schedule-input fld" value="{{ $ov('mfy') }}" maxlength="255" autocomplete="off">
             </div>
-            <div class="meta" style="grid-column:1/-1;">
-                <div class="lbl">Манзил</div>
-                <textarea name="address" class="schedule-input fld" rows="2" style="resize:vertical;min-height:48px;" maxlength="10000">{{ $ov('address') }}</textarea>
-            </div>
+         
             <div class="meta">
                 <div class="lbl">Қурилиш ҳажми (м³)</div>
                 <input type="number" name="build_volume" class="schedule-input fld" value="{{ $ov('build_volume') !== '' ? $ov('build_volume') : '' }}" step="0.01" min="0" placeholder="0.00" autocomplete="off">
+            </div>
+            <div class="meta">
+                <div class="lbl">Объект тури</div>
+                <input type="text" name="object_type" class="schedule-input fld" value="{{ $ov('object_type') }}" maxlength="255" placeholder="turar joy" autocomplete="off">
             </div>
             <div class="meta">
                 <div class="lbl">Коэффицент</div>
@@ -241,33 +297,17 @@
                 <div class="lbl">АПЗ номер</div>
                 <input type="text" name="apz_number" class="schedule-input fld" value="{{ $ov('apz_number') }}" maxlength="100" autocomplete="off">
             </div>
-            <div class="meta" style="grid-column:1/-1;">
+            
+            <div class="meta">
                 <div class="lbl">Кенгаш хулосаси</div>
                 <input type="text" name="council_decision" class="schedule-input fld" value="{{ $ov('council_decision') }}" maxlength="255" autocomplete="off">
             </div>
-            <div class="meta" style="grid-column:1/-1;">
+            <div class="meta">
                 <div class="lbl">Экспертиза хулосаси</div>
                 <input type="text" name="expertise" class="schedule-input fld" value="{{ $ov('expertise') }}" maxlength="255" autocomplete="off">
             </div>
             <div class="meta">
-                <div class="lbl">ИНН</div>
-                <input type="text" name="inn" class="schedule-input fld" value="{{ $ov('inn') }}" maxlength="50" autocomplete="off">
-            </div>
-            <div class="meta">
-                <div class="lbl">Шартнома санаси</div>
-                <input type="date" name="contract_date" class="schedule-input fld" value="{{ $ov('contract_date') }}" autocomplete="off">
-            </div>
-            <div class="meta">
-                <div class="lbl">Ҳолат</div>
-                <select name="contract_status" class="schedule-input fld">
-                    @php $st = old('contract_status', $d['contract_status'] ?? 'in_progress'); @endphp
-                    <option value="in_progress" @selected($st === 'in_progress')>Амалдаги</option>
-                    <option value="completed" @selected($st === 'completed')>Якунланган</option>
-                    <option value="cancelled" @selected($st === 'cancelled')>Бекор қилинган</option>
-                </select>
-            </div>
-            <div class="meta">
-                <div class="lbl">Қурилиш ҳолати</div>
+                <div class="lbl">Қурилиш ҳолати (CSV)</div>
                 <select name="construction_issue" class="schedule-input fld">
                     @php $is = old('construction_issue', $d['construction_issue'] ?? 'unknown'); @endphp
                     <option value="unknown" @selected($is === 'unknown')>— (кўрсатилмаган)</option>
@@ -275,47 +315,149 @@
                     <option value="problem" @selected($is === 'problem')>Муаммоли</option>
                 </select>
             </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Қурилиш / объект манзили</div>
+                <textarea name="address" class="schedule-input fld" rows="2" style="resize:vertical;min-height:48px;" maxlength="10000">{{ $ov('address') }}</textarea>
+            </div>
         </div>
         <div class="schedule-actions" style="margin-top:0;margin-bottom:12px;">
             <button type="submit" class="platon-btn platon-btn-primary platon-btn-sm">Реквизитларни сақлаш</button>
         </div>
     </form>
-    <div class="print-only-meta meta-grid" aria-hidden="true">
-        <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
-        <div class="meta"><div class="lbl">№ / Инвестор</div><div class="val">{{ $contract['contract_number'] }} · {{ $contract['investor_name'] }}</div></div>
-        <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
-        <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
-        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
-        <div class="meta"><div class="lbl">Қурилиш ҳажми</div><div class="val">{{ $contract['build_volume'] }}</div></div>
-        <div class="meta"><div class="lbl">Коэффицент</div><div class="val">{{ $contract['coefficient'] }}</div></div>
-        <div class="meta"><div class="lbl">Зона</div><div class="val">{{ $contract['zone'] }}</div></div>
-        <div class="meta"><div class="lbl">Рухсатнома</div><div class="val">{{ $contract['permit'] }}</div></div>
-        <div class="meta"><div class="lbl">АПЗ номер</div><div class="val">{{ $contract['apz_number'] }}</div></div>
-        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Кенгаш хулосаси</div><div class="val">{{ $contract['council_decision'] }}</div></div>
-        <div class="meta" style="grid-column:1/-1;"><div class="lbl">Экспертиза хулосаси</div><div class="val">{{ $contract['expertise'] }}</div></div>
-        <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
-        <div class="meta"><div class="lbl">Шартнома санаси</div><div class="val">{{ $contract['contract_date'] }}</div></div>
-        <div class="meta"><div class="lbl">Ҳолат</div><div class="val"><span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
-        <div class="meta"><div class="lbl">Қурилиш ҳолати</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
+
+    <div class="no-print" style="margin-bottom:16px;">
+        <div class="block-title">3. Файллар (storage / local)</div>
+        <div class="formula-wrap" style="margin-bottom:10px;">
+            <div class="k" style="font-size:0.78rem;color:#5a6470;">Шартнома: битта файл (янгиси эски файлни алиб ташлайди). Бошқалар: бир нечта, алоҳида ўчирилади ёки юкланади.</div>
+        </div>
+        <div class="meta-grid">
+            <div class="meta">
+                <div class="lbl">Шартнома файли (скан / PDF)</div>
+                @if(!empty($contractFile))
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;">
+                        <a href="{{ $contractFile['url'] }}" class="platon-btn platon-btn-outline platon-btn-sm" target="_blank" rel="noopener">↓ {{ $contractFile['name'] }}</a>
+                        <span style="font-size:0.75rem;color:#7f8a9b;">{{ $contractFile['size'] }}</span>
+                        <form method="POST" action="{{ route('contract-attachments.delete', $contractFile['id']) }}" onsubmit="return confirm('Ўчирилсинми?');" style="display:inline;">
+                            @csrf
+                            <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+                            <input type="hidden" name="page" value="{{ request('page', 1) }}">
+                            <button type="submit" class="platon-btn platon-btn-outline platon-btn-sm" style="color:#c02050;">Ўчириш</button>
+                        </form>
+                    </div>
+                @else
+                    <p style="margin:6px 0 0;font-size:0.8rem;color:#8892a5;">Ҳозирча йўқ</p>
+                @endif
+                <form method="POST" enctype="multipart/form-data" action="{{ route('contracts.file.contract', $contract['contract_id']) }}" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    @csrf
+                    <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+                    <input type="hidden" name="page" value="{{ request('page', 1) }}">
+                    <input type="file" name="file" class="schedule-input" style="max-width:100%;" required>
+                    <button type="submit" class="platon-btn platon-btn-primary platon-btn-sm">Шартнома юклаш / алмаштириш</button>
+                </form>
+            </div>
+            <div class="meta">
+                <div class="lbl">Бошқа ҳужжатлар</div>
+                @forelse($otherFiles as $f)
+                    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0;">
+                        <a href="{{ $f['url'] }}" class="platon-btn platon-btn-outline platon-btn-sm" target="_blank" rel="noopener">↓ {{ $f['name'] }}</a>
+                        <span style="font-size:0.75rem;color:#7f8a9b;">{{ $f['size'] }}</span>
+                        <form method="POST" action="{{ route('contract-attachments.delete', $f['id']) }}" onsubmit="return confirm('Ўчирилсинми?');" style="display:inline;">
+                            @csrf
+                            <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+                            <input type="hidden" name="page" value="{{ request('page', 1) }}">
+                            <button type="submit" class="platon-btn platon-btn-outline platon-btn-sm" style="color:#c02050;">Ўчириш</button>
+                        </form>
+                    </div>
+                @empty
+                    <p style="margin:6px 0 0;font-size:0.8rem;color:#8892a5;">Ҳали файл йўқ</p>
+                @endforelse
+                <form method="POST" enctype="multipart/form-data" action="{{ route('contracts.files.other', $contract['contract_id']) }}" style="margin-top:10px;">
+                    @csrf
+                    <input type="hidden" name="back" value="{{ request('back', $backUrl) }}">
+                    <input type="hidden" name="page" value="{{ request('page', 1) }}">
+                    <input type="file" name="files[]" class="schedule-input" style="max-width:100%;" multiple required>
+                    <div style="margin-top:8px;">
+                        <button type="submit" class="platon-btn platon-btn-primary platon-btn-sm">Бир ёки бир нечта файл юклаш</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="print-only-meta" aria-hidden="true">
+        <div class="block-title" style="margin-top:0;">Инвестор ва шартнома</div>
+        <div class="meta-grid">
+            <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Шартнома / инвестор</div><div class="val">{{ $contract['contract_number'] }} — {{ $contract['investor_name'] }}</div></div>
+            <div class="meta"><div class="lbl">Телефон</div><div class="val">{{ $contract['phone'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Инвестор манзили</div><div class="val">{{ $contract['investor_address'] }}</div></div>
+            <div class="meta"><div class="lbl">Буюртмачи</div><div class="val">{{ $contract['client_type'] }}</div></div>
+            <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
+            <div class="meta"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['contract_value_display'] }}</div></div>
+            <div class="meta"><div class="lbl">Тўлов шарти</div><div class="val">{{ $contract['payment_terms'] }}</div></div>
+            <div class="meta"><div class="lbl">Режа сони</div><div class="val">{{ $contract['installments_count'] }}</div></div>
+            <div class="meta"><div class="lbl">Талабнома (рақам / сана)</div><div class="val">{{ $contract['demand_letter_number'] }} / {{ $contract['demand_letter_date'] }}</div></div>
+            <div class="meta"><div class="lbl">Сана / ҳолат</div><div class="val">{{ $contract['contract_date'] }} — <span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
+        </div>
+        <div class="block-title">Объект</div>
+        <div class="meta-grid">
+            <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
+            <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
+            <div class="meta"><div class="lbl">м³ / тури / зона</div><div class="val">{{ $contract['build_volume'] }} · {{ $contract['object_type'] }} · {{ $contract['zone'] }}</div></div>
+            <div class="meta"><div class="lbl">Коэфф.</div><div class="val">{{ $contract['coefficient'] }}</div></div>
+            <div class="meta"><div class="lbl">Рухсат / АПЗ</div><div class="val">{{ $contract['permit'] }} / {{ $contract['apz_number'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Кенгаш / эксперт</div><div class="val">{{ $contract['council_decision'] }} / {{ $contract['expertise'] }}</div></div>
+            <div class="meta"><div class="lbl">Қурилиш</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
+        </div>
     </div>
     @else
-    <div class="meta-grid">
-        <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
-        <div class="meta"><div class="lbl">№ / Инвестор</div><div class="val">{{ $contract['contract_number'] }} · {{ $contract['investor_name'] }}</div></div>
-        <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
-        <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
-        <div class="meta"><div class="lbl">Манзил</div><div class="val">{{ $contract['address'] }}</div></div>
-        <div class="meta"><div class="lbl">Қурилиш ҳажми</div><div class="val">{{ $contract['build_volume'] }}</div></div>
-        <div class="meta"><div class="lbl">Коэффицент</div><div class="val">{{ $contract['coefficient'] }}</div></div>
-        <div class="meta"><div class="lbl">Зона</div><div class="val">{{ $contract['zone'] }}</div></div>
-        <div class="meta"><div class="lbl">Рухсатнома</div><div class="val">{{ $contract['permit'] }}</div></div>
-        <div class="meta"><div class="lbl">АПЗ номер</div><div class="val">{{ $contract['apz_number'] }}</div></div>
-        <div class="meta"><div class="lbl">Кенгаш хулосаси</div><div class="val">{{ $contract['council_decision'] }}</div></div>
-        <div class="meta"><div class="lbl">Экспертиза хулосаси</div><div class="val">{{ $contract['expertise'] }}</div></div>
-        <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
-        <div class="meta"><div class="lbl">Шартнома санаси</div><div class="val">{{ $contract['contract_date'] }}</div></div>
-        <div class="meta"><div class="lbl">Ҳолат</div><div class="val"><span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
-        <div class="meta"><div class="lbl">Қурилиш ҳолати</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
+    <div>
+        <div class="block-title" style="margin-top:0;">Инвестор ва шартнома</div>
+        <div class="meta-grid">
+            <div class="meta"><div class="lbl">ID</div><div class="val">{{ $contract['contract_id'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Шартнома / инвестор</div><div class="val">{{ $contract['contract_number'] }} — {{ $contract['investor_name'] }}</div></div>
+            <div class="meta"><div class="lbl">Телефон</div><div class="val">{{ $contract['phone'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Инвестор манзили</div><div class="val">{{ $contract['investor_address'] }}</div></div>
+            <div class="meta"><div class="lbl">Буюртмачи</div><div class="val">{{ $contract['client_type'] }}</div></div>
+            <div class="meta"><div class="lbl">ИНН</div><div class="val">{{ $contract['inn'] }}</div></div>
+            <div class="meta"><div class="lbl">Шартнома қиймати</div><div class="val">{{ $contract['contract_value_display'] }}</div></div>
+            <div class="meta"><div class="lbl">Тўлов шарти / сони</div><div class="val">{{ $contract['payment_terms'] }} / {{ $contract['installments_count'] }}</div></div>
+            <div class="meta"><div class="lbl">Талабнома (рақам / сана)</div><div class="val">{{ $contract['demand_letter_number'] }} / {{ $contract['demand_letter_date'] }}</div></div>
+            <div class="meta"><div class="lbl">Сана / ҳолат</div><div class="val">{{ $contract['contract_date'] }} — <span class="badge-mini {{ $contract['status_class'] }}">{{ $contract['status_label'] }}</span></div></div>
+        </div>
+        <div class="block-title">Объект</div>
+        <div class="meta-grid">
+            <div class="meta"><div class="lbl">Туман</div><div class="val">{{ $contract['district'] }}</div></div>
+            <div class="meta"><div class="lbl">МФЙ</div><div class="val">{{ $contract['mfy'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Манзил (объект)</div><div class="val">{{ $contract['address'] }}</div></div>
+            <div class="meta"><div class="lbl">Қурилиш ҳажми</div><div class="val">{{ $contract['build_volume'] }}</div></div>
+            <div class="meta"><div class="lbl">Объект тури</div><div class="val">{{ $contract['object_type'] }}</div></div>
+            <div class="meta"><div class="lbl">Коэфф. / зона</div><div class="val">{{ $contract['coefficient'] }} / {{ $contract['zone'] }}</div></div>
+            <div class="meta"><div class="lbl">Рухсатнома</div><div class="val">{{ $contract['permit'] }}</div></div>
+            <div class="meta"><div class="lbl">АПЗ номер</div><div class="val">{{ $contract['apz_number'] }}</div></div>
+            <div class="meta" style="grid-column:1/-1;"><div class="lbl">Кенгаш / эксперт</div><div class="val">{{ $contract['council_decision'] }} / {{ $contract['expertise'] }}</div></div>
+            <div class="meta"><div class="lbl">Қурилиш ҳолати</div><div class="val"><span class="badge-mini {{ $contract['issue_class'] }}">{{ $contract['issue_label'] }}</span></div></div>
+        </div>
+        <div class="block-title">Файллар</div>
+        <div class="meta-grid">
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Шартнома</div>
+                @if(!empty($contractFile))
+                    <div class="val" style="margin-top:4px;"><a href="{{ $contractFile['url'] }}" target="_blank" rel="noopener">{{ $contractFile['name'] }}</a> <span style="color:#8892a5;font-size:0.8rem;">({{ $contractFile['size'] }})</span></div>
+                @else
+                    <div class="val" style="margin-top:4px;">—</div>
+                @endif
+            </div>
+            <div class="meta" style="grid-column:1/-1;">
+                <div class="lbl">Бошқа ҳужжатлар</div>
+                @forelse($otherFiles as $f)
+                    <div class="val" style="margin-top:4px;"><a href="{{ $f['url'] }}" target="_blank" rel="noopener">{{ $f['name'] }}</a> <span style="color:#8892a5;font-size:0.8rem;">({{ $f['size'] }})</span></div>
+                @empty
+                    <div class="val" style="margin-top:4px;">—</div>
+                @endforelse
+            </div>
+        </div>
     </div>
     @endif
 
