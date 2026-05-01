@@ -877,6 +877,65 @@ class TransactionController extends Controller
         $contract->debt         = $metrics['debt'];
         $contract->pct          = $metrics['pct'];
 
+        $principalPaymentsRaw = DB::select(
+            "SELECT payment_date, amount
+             FROM apz_payments
+             WHERE contract_id = ?
+               AND flow = 'Приход'
+               AND TRIM(IFNULL(type, '')) <> 'Пеня тўлови'
+               AND COALESCE(amount, 0) > 0
+             ORDER BY payment_date ASC, id ASC",
+            [$contractId]
+        );
+        $principalPaymentsAsc = [];
+        foreach ($principalPaymentsRaw as $pr) {
+            $principalPaymentsAsc[] = [
+                'payment_date' => $pr->payment_date,
+                'amount' => max((float) ($pr->amount ?? 0.0), 0.0),
+            ];
+        }
+
+        $penaltyLedgerCore = $this->computeContractPenaltyLedger(
+            max((float) ($contract->contract_value ?? 0.0), 0.0),
+            $contract->payment_schedule ?? null,
+            $principalPaymentsAsc,
+            max((float) ($metrics['paid_advance_amount'] ?? 0.0), 0.0),
+        );
+
+        $scalingLedger = max((float) ($penaltyLedgerCore['scaling'] ?? 1.0), 0.0);
+        $penaltyLedgerRows = [];
+        foreach ($penaltyLedgerCore['rows'] as $r) {
+            $disp = round(((float) ($r['penalty_segment_raw'] ?? 0.0)) * $scalingLedger, 2);
+            $paidAmt = $r['paid_amount'] ?? null;
+            $penaltyLedgerRows[] = [
+                'period_from' => $r['period_from'],
+                'period_to' => $r['period_to'],
+                'days' => (int) ($r['days'] ?? 0),
+                'eligible_principal' => $this->formatNumber((float) ($r['eligible_principal'] ?? 0.0), 2),
+                'penalty_segment' => $this->formatNumber((float) ($r['penalty_segment_raw'] ?? 0.0), 2),
+                'penalty_segment_capped_display' => $this->formatNumber($disp, 2),
+                'paid_date' => $r['paid_date'] ?? '—',
+                'paid_amount' => $paidAmt !== null
+                    ? $this->formatNumber((float) $paidAmt, 2)
+                    : '—',
+                'remaining_after' => isset($r['remaining_after_payment']) && $r['remaining_after_payment'] !== null
+                    ? $this->formatNumber((float) $r['remaining_after_payment'], 2)
+                    : '—',
+            ];
+        }
+
+        $penaltyLedgerForView = [
+            'show' => (bool) ($penaltyLedgerCore['show'] ?? false),
+            'note' => (string) ($penaltyLedgerCore['note'] ?? ''),
+            'daily_rate_label' => (string) ($penaltyLedgerCore['daily_rate_label'] ?? ''),
+            'cap_principal' => $this->formatNumber((float) ($penaltyLedgerCore['principal_cap_base'] ?? 0.0), 2),
+            'cap_fifteen' => $this->formatNumber((float) ($penaltyLedgerCore['penalty_cap'] ?? 0.0), 2),
+            'total_raw' => $this->formatNumber((float) ($penaltyLedgerCore['penalty_raw_total'] ?? 0.0), 2),
+            'total_capped' => $this->formatNumber((float) ($penaltyLedgerCore['penalty_capped_total'] ?? 0.0), 2),
+            'was_capped' => ((float) ($penaltyLedgerCore['penalty_raw_total'] ?? 0.0)) > ((float) ($penaltyLedgerCore['penalty_capped_total'] ?? 0.0)) + 0.009,
+            'rows' => $penaltyLedgerRows,
+        ];
+
         $backUrl = $request->filled('back') ? (string) $request->back : null;
 
         $advancePercent = (float) ($metrics['advance_percent'] ?? 0.0);
@@ -1077,6 +1136,7 @@ class TransactionController extends Controller
                 'advance_amount_mln' => $this->formatNumber($advanceAmount, 2),
                 'fact_mln' => $this->formatNumber($fact, 2),
                 'penalty_mln' => $this->formatNumber((float) ($contract->penalty_paid ?? 0.0), 2),
+                'penalty_calc_capped_mln' => $this->formatNumber((float) ($penaltyLedgerCore['penalty_capped_total'] ?? 0.0), 2),
                 'fact_without_advance_mln' => $this->formatNumber($factAfterAdvance, 2),
                 'plan_due_today_mln' => $this->formatNumber((float) ($metrics['plan_due_today'] ?? 0.0), 2),
                 'debt_mln' => $this->formatNumber((float) ($metrics['overdue_debt'] ?? 0.0), 2),
@@ -1126,6 +1186,7 @@ class TransactionController extends Controller
             'backUrl' => $backUrl ?: route('summary2'),
             'canEditContract' => $this->canEditContractSchedule($request->user()),
             'pagination' => $this->buildContractPagination((int) ($contract->contract_id ?? 0), $backUrl, (int) $payload['page'], (int) $payload['last_page']),
+            'penaltyLedger' => $penaltyLedgerForView,
         ]);
     }
 
@@ -1661,6 +1722,281 @@ class TransactionController extends Controller
             'page'      => $page,
             'per_page'  => $perPage,
             'last_page' => (int) ceil($total / $perPage),
+        ];
+    }
+
+    /**
+     * Пеня: Қолдиқ асос × кунлар × кунлик ставка (мисол: 0,01% → 0,0001).
+     * Жами пеня шартнома қийматининг 15% дан оshmаслиги билан чегараланади.
+     */
+    private const CONTRACT_PENALTY_DAILY_RATE = 0.0001;
+
+    /**
+     * @param float $remainingAdvanceForScheduleInit чақирувда сақланади; қатламли пеняда тўлов FIFO график суммасини ўзи камайтиради (буни иккинчи марта ажратмаймиз).
+     * @return array{
+     *   show:bool,
+     *   note:string,
+     *   daily_rate_label:string,
+     *   principal_cap_base:float,
+     *   penalty_cap:float,
+     *   penalty_raw_total:float,
+     *   penalty_capped_total:float,
+     *   scaling:float,
+     *   rows: array<int, array<string, mixed>>
+     * }
+     */
+    private function computeContractPenaltyLedger(
+        float $contractValuePlan,
+        $paymentScheduleRaw,
+        array $principalInPaymentsAsc,
+        float $remainingAdvanceForScheduleInit
+    ): array {
+        $today = \Carbon\CarbonImmutable::today()->startOfDay();
+        $rate = self::CONTRACT_PENALTY_DAILY_RATE;
+
+        $scheduleParsed = [];
+        foreach ($this->parseScheduleByDate($paymentScheduleRaw ?? null) as $dateLabel => $amount) {
+            $due = null;
+            $rawLabel = trim((string) $dateLabel);
+            if ($rawLabel !== '') {
+                try {
+                    $due = \Carbon\CarbonImmutable::createFromFormat('d.m.Y', $rawLabel)->startOfDay();
+                } catch (\Throwable $e) {
+                    try {
+                        $due = \Carbon\CarbonImmutable::parse($rawLabel)->startOfDay();
+                    } catch (\Throwable $inner) {
+                        $due = null;
+                    }
+                }
+            }
+            if ($due !== null && $amount > 0.0) {
+                $scheduleParsed[] = [
+                    'due' => $due,
+                    'amount' => round((float) $amount, 4),
+                    'due_display' => $due->format('d.m.Y'),
+                ];
+            }
+        }
+
+        usort($scheduleParsed, function (array $a, array $b) {
+            return strcmp($a['due']->format('Y-m-d'), $b['due']->format('Y-m-d'));
+        });
+
+        /**
+         * Excel/таблица манзили: пеня каждый тўлов санаси билан пасайувчи асос бўйича қатлам-қатлам.
+         * Шу sabab график суммасини аванстен тозаламаймиз ва тўловларни тўлиқ (пеня турсиз) FIFO қиламиз —
+         * аванс % график қарзи устида аник факт тўловлар орқали ўзгартирилади ($remainingAdvanceForScheduleInit ишлатилмайди).
+         */
+        $installments = [];
+
+        foreach ($scheduleParsed as $row) {
+            $scheduleAmount = max((float) $row['amount'], 0.0);
+            if ($scheduleAmount <= 0.0) {
+                continue;
+            }
+
+            $installments[] = [
+                'due' => $row['due'],
+                'remaining' => $scheduleAmount,
+                'due_display' => $row['due_display'],
+            ];
+        }
+
+        $schedulePrincipalSum = 0.0;
+        foreach ($installments as $i) {
+            $schedulePrincipalSum += $i['remaining'];
+        }
+
+        $capBase = $contractValuePlan > 0.0
+            ? $contractValuePlan
+            : ($schedulePrincipalSum > 0.0 ? $schedulePrincipalSum : 0.0);
+        $penaltyCap = round($capBase * 0.15, 2);
+
+        if ($installments === []) {
+            return [
+                'show' => false,
+                'note' => 'Тўлов графиги йўқ ёки муддатлар бўйича асосий қарз қолинмаган.',
+                'daily_rate_label' => '',
+                'principal_cap_base' => $capBase,
+                'penalty_cap' => $penaltyCap,
+                'penalty_raw_total' => 0.0,
+                'penalty_capped_total' => 0.0,
+                'scaling' => 1.0,
+                'rows' => [],
+            ];
+        }
+
+        $eventDates = [];
+        foreach ($installments as $ins) {
+            if ($ins['due']->greaterThan($today)) {
+                continue;
+            }
+            $eventDates[] = $ins['due']->toDateString();
+        }
+        foreach ($principalInPaymentsAsc as $p) {
+            $pd = trim((string) ($p['payment_date'] ?? ''));
+            if ($pd === '') {
+                continue;
+            }
+            try {
+                $payDay = \Carbon\CarbonImmutable::parse($pd)->startOfDay();
+            } catch (\Throwable $e) {
+                continue;
+            }
+            if ($payDay->greaterThan($today)) {
+                continue;
+            }
+            $eventDates[] = $payDay->toDateString();
+        }
+        $eventDates[] = $today->toDateString();
+        $eventDates = array_unique($eventDates);
+        sort($eventDates);
+
+        if ($eventDates === []) {
+            return [
+                'show' => false,
+                'note' => '',
+                'daily_rate_label' => '',
+                'principal_cap_base' => $capBase,
+                'penalty_cap' => $penaltyCap,
+                'penalty_raw_total' => 0.0,
+                'penalty_capped_total' => 0.0,
+                'scaling' => 1.0,
+                'rows' => [],
+            ];
+        }
+
+        $paymentsByDay = [];
+        foreach ($principalInPaymentsAsc as $p) {
+            $pd = trim((string) ($p['payment_date'] ?? ''));
+            if ($pd === '') {
+                continue;
+            }
+            try {
+                $payDayParsed = \Carbon\CarbonImmutable::parse($pd)->startOfDay();
+            } catch (\Throwable $e) {
+                continue;
+            }
+            if ($payDayParsed->greaterThan($today)) {
+                continue;
+            }
+            $dk = $payDayParsed->toDateString();
+            $amt = max((float) ($p['amount'] ?? 0.0), 0.0);
+            if ($amt <= 0.0) {
+                continue;
+            }
+            $paymentsByDay[$dk] = ($paymentsByDay[$dk] ?? 0.0) + $amt;
+        }
+
+        /** Графикдагидай: тўлов навбатдаги оёқларни ўз вақтидан аввал ҳам қоплаши мумкин. */
+        $applyPaymentFifo = static function (float $amount) use (&$installments): void {
+            if ($amount <= 0.0) {
+                return;
+            }
+
+            foreach ($installments as $idx => $inst) {
+                if ($amount <= 0.0) {
+                    break;
+                }
+                if ($inst['remaining'] <= 0.0) {
+                    continue;
+                }
+
+                $use = min($inst['remaining'], $amount);
+                $installments[$idx]['remaining'] = max($inst['remaining'] - $use, 0.0);
+                $amount -= $use;
+            }
+        };
+
+        $rows = [];
+        $penaltyRaw = 0.0;
+
+        for ($i = 0; $i < count($eventDates) - 1; $i++) {
+            $cursorStr = $eventDates[$i];
+            $nextStr = $eventDates[$i + 1];
+            try {
+                $cursorDay = \Carbon\CarbonImmutable::parse($cursorStr)->startOfDay();
+                $nextDay = \Carbon\CarbonImmutable::parse($nextStr)->startOfDay();
+            } catch (\Throwable $e) {
+                continue;
+            }
+
+            $eligible = 0.0;
+            foreach ($installments as $inst) {
+                if ($inst['remaining'] <= 0.0) {
+                    continue;
+                }
+                if ($inst['due']->greaterThan($cursorDay)) {
+                    continue;
+                }
+                $eligible += $inst['remaining'];
+            }
+
+            $days = $cursorDay->diffInDays($nextDay, false);
+            if ($days < 0) {
+                $days = -$days;
+            }
+
+            $paidOnEnd = isset($paymentsByDay[$nextStr]) ? round((float) $paymentsByDay[$nextStr], 2) : 0.0;
+            $segmentRaw = round($eligible * (float) $days * $rate, 2);
+            if ($days > 0 && $eligible > 0.0 && $segmentRaw > 0.0) {
+                $penaltyRaw += $segmentRaw;
+
+                $rows[] = [
+                    'period_from' => $cursorDay->format('d.m.Y'),
+                    'period_to' => $nextDay->format('d.m.Y'),
+                    'days' => $days,
+                    'eligible_principal' => round($eligible, 2),
+                    'penalty_segment_raw' => $segmentRaw,
+                    'paid_date' => $paidOnEnd > 0.0 ? $nextDay->format('d.m.Y') : '—',
+                    'paid_amount' => $paidOnEnd > 0.0 ? $paidOnEnd : null,
+                    'remaining_after_payment' => null,
+                ];
+            }
+
+            if (isset($paymentsByDay[$nextStr])) {
+                $applyPaymentFifo((float) $paymentsByDay[$nextStr]);
+
+                $sumRem = 0.0;
+                foreach ($installments as $inst) {
+                    if ($inst['due']->greaterThan($nextDay)) {
+                        continue;
+                    }
+                    $sumRem += $inst['remaining'];
+                }
+                $remRounded = round($sumRem, 2);
+
+                for ($ri = count($rows) - 1; $ri >= 0; $ri--) {
+                    $row = &$rows[$ri];
+                    if ($row['remaining_after_payment'] === null && $row['period_to'] === $nextDay->format('d.m.Y')) {
+                        $row['remaining_after_payment'] = $remRounded;
+                        break;
+                    }
+                }
+                unset($row);
+            }
+        }
+
+        // Охирги кунгача қолган асос бо‘йича (агар воқеylar тугамаса)
+        foreach ($paymentsByDay as $dayStr => $amt) {
+            if (! in_array($dayStr, $eventDates, true)) {
+                $applyPaymentFifo((float) $amt);
+            }
+        }
+
+        $penaltyRaw = round($penaltyRaw, 2);
+        $penaltyCapped = min($penaltyRaw, $penaltyCap);
+
+        return [
+            'show' => count($rows) > 0,
+            'note' => 'Ставка: кунига ' . $this->formatNumber($rate * 100, 4) . '% (0,0001). Пеня жами асосийнинг 15% дан ортиқ бўлмаган.',
+            'daily_rate_label' => $this->formatNumber($rate * 100, 4) . '% / кун',
+            'principal_cap_base' => $capBase,
+            'penalty_cap' => $penaltyCap,
+            'penalty_raw_total' => $penaltyRaw,
+            'penalty_capped_total' => $penaltyCapped,
+            'scaling' => $penaltyRaw > 0.0 ? ($penaltyCapped / $penaltyRaw) : 1.0,
+            'rows' => $rows,
         ];
     }
 

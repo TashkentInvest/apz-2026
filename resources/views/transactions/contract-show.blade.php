@@ -155,7 +155,8 @@
         <div class="stat"><div class="lbl">Факт тўлов</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Факт тўлов (аванссиз)</div><div class="val" style="color:#0a8a2e;">{{ $contract['fact_without_advance_mln'] }}</div></div>
         <div class="stat"><div class="lbl">Қолдиқ қиймат</div><div class="val" style="color:#e63260;">{{ $contract['qoldiq_mln'] }}</div></div>
-        <div class="stat"><div class="lbl">Пеня тўловлар</div><div class="val" style="color:#b58900;">{{ $contract['penalty_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Пеня тўловлар (факт)</div><div class="val" style="color:#b58900;">{{ $contract['penalty_mln'] }}</div></div>
+        <div class="stat"><div class="lbl">Ҳисобланган пеня (15% ҳад)</div><div class="val" style="color:#b58900;">{{ $contract['penalty_calc_capped_mln'] }}</div></div>
     </div>
 
     <div class="formula-wrap">
@@ -188,6 +189,67 @@
             </div>
         </div>
     </div>
+
+    @if(($penaltyLedger['show'] ?? false) && count($penaltyLedger['rows'] ?? []) > 0)
+        <div class="block-title" style="margin-top:4px;">Пеня ҳисоб-китоби (асос × кун × {{ $penaltyLedger['daily_rate_label'] }})</div>
+        @if(($penaltyLedger['was_capped'] ?? false))
+            <p class="sub" style="margin:0 0 10px;font-size:0.78rem;color:#6e788b;">{{ $penaltyLedger['note'] }} Жадвалдаги интерваллар жами 15% ҳадга мутаносиб қисқартирилади.</p>
+        @else
+            <p class="sub" style="margin:0 0 10px;font-size:0.78rem;color:#6e788b;">{{ $penaltyLedger['note'] }}</p>
+        @endif
+        <div class="tbl-wrap" style="margin-bottom:14px;">
+            <table class="tbl">
+                <thead>
+                    <tr>
+                        <th style="width:5%;">№</th>
+                        <th>Давр боши</th>
+                        <th>Давр охири</th>
+                        <th class="r">Асосий қарз (давр боши)</th>
+                        <th class="c">Кунлар</th>
+                        <th class="r">Пеня (хом)</th>
+                        <th class="c">Тўланган сана</th>
+                        <th class="r">Тўланган сумма</th>
+                        <th class="r">Қолдиқ асос (тўловдан сўнг)</th>
+                        <th class="r">Пеня (15% ҳад билан)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($penaltyLedger['rows'] as $pi => $prow)
+                        <tr>
+                            <td class="c">{{ $pi + 1 }}</td>
+                            <td class="c">{{ $prow['period_from'] }}</td>
+                            <td class="c">{{ $prow['period_to'] }}</td>
+                            <td class="r">{{ $prow['eligible_principal'] }}</td>
+                            <td class="c">{{ $prow['days'] }}</td>
+                            <td class="r">{{ $prow['penalty_segment'] }}</td>
+                            <td class="c">{{ $prow['paid_date'] }}</td>
+                            <td class="r">{{ $prow['paid_amount'] }}</td>
+                            <td class="r">{{ $prow['remaining_after'] }}</td>
+                            <td class="r" style="font-weight:700;color:#015c58;">{{ $prow['penalty_segment_capped_display'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="formula-grid" style="margin-bottom:16px;">
+            <div class="formula-card">
+                <div class="t">Чегара асоси (шартнома қиймати)</div>
+                <div class="v">{{ $penaltyLedger['cap_principal'] }} сўм</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">Пенянинг 15% ҳад миқдори</div>
+                <div class="v">{{ $penaltyLedger['cap_fifteen'] }} сўм</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">Жами пеня (хом ҳисоб)</div>
+                <div class="v">{{ $penaltyLedger['total_raw'] }} сўм</div>
+            </div>
+            <div class="formula-card">
+                <div class="t">Жами пеня (теғишли ҳад билан)</div>
+                <div class="v" style="color:#b58900;">{{ $penaltyLedger['total_capped'] }} сўм</div>
+            </div>
+        </div>
+    @endif
 
     @if($canEditContract)
     @php
