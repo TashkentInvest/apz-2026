@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\EImzoAuthController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SsoLoginController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Auth;
 
 // ─── Public: redirect root to login ───
 Route::get('/', fn() => auth()->check() ? redirect()->route('home') : redirect()->route('login'));
+Route::get('/sso/login', SsoLoginController::class)->name('sso.login');
 
 // ─── E-IMZO Auth ───
 Route::middleware('guest')->group(function () {
@@ -87,3 +89,6 @@ Route::middleware('auth')->group(function () {
     }); // end approved group
 }); // end auth group
 
+
+
+Route::get('/sso/login', SsoLoginController::class)->name('sso.login');
