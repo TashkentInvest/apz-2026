@@ -256,6 +256,10 @@ class ImportTransactions extends Command
         if (preg_match('/^(\d{2})\.(\d{2})\.(\d{4})$/', $s, $m)) {
             return "{$m[3]}-{$m[2]}-{$m[1]}";
         }
+        // Excel serial date (e.g. 46154 = 2026-05-12)
+        if (preg_match('/^\d{5}$/', $s) && (int) $s > 30000 && (int) $s < 60000) {
+            return date('Y-m-d', strtotime('1899-12-30 +' . (int) $s . ' days'));
+        }
         $t = strtotime(str_replace('.', '-', $s));
         return $t !== false ? date('Y-m-d', $t) : null;
     }
