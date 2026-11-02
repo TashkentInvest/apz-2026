@@ -4,14 +4,16 @@
 - `docs/materials/private/shablonlar/договор янги/` dagi 5 ta bo'sh shartnoma shabloni. Bu hujjatda "joriy shablonlar" deb ataladi.
 - `docs/materials/private/shablonlar/2026-11-02/dog-shablon.doc`. Bu to'ldirilgan shartnoma namunasi, bu hujjatda **S-2026** deb ataladi.
 - `docs/materials/private/shablonlar/2026-11-02/talabnoma.doc`. Bu talabnoma namunasi, bu hujjatda **T-1** deb ataladi.
+- `docs/materials/private/shablonlar/2026-11-02/qoshimcha-shartnoma.docx`. Bu 2024-yilgi shartnomaga tuzilgan 1-sonli qo'shimcha kelishuv namunasi, bu hujjatda **KK-1** deb ataladi.
+- `docs/materials/private/shablonlar/2026-11-02/xat-namuna.docx`. Bu investorning shartnoma tuzishni so'rab yozgan murojaat xati namunasi, bu hujjatda **X-1** deb ataladi.
 - `storage/dataset-apz/grafik_apz.csv` va `fakt_apz.csv`, ya'ni reja-jadval va to'lovlar fakti.
 - [yigim-hisoblash.md](yigim-hisoblash.md).
 
-**Maxfiylik.** Bu faylda investor nomi, F.I.Sh., STIR, JShShIR, telefon, hisob raqami va namunadagi shartnoma raqamlari yozilmaydi. Kompaniya va Jamg'arma rekvizitlari ochiq bo'lsa ham bu yerga va kodga yozilmaydi. Ular versiyalangan ma'lumotnomada saqlanadi. Aniq qiymatlar private papkadagi namunalarda bor.
+**Maxfiylik.** Bu faylda investor nomi, F.I.Sh., STIR, JShShIR, telefon, hisob raqami, manzil, namunadagi shartnoma, xat, ART va ekspertiza xulosasi raqamlari yozilmaydi. Kompaniya va Jamg'arma rekvizitlari ochiq bo'lsa ham bu yerga va kodga yozilmaydi. Ular versiyalangan ma'lumotnomada saqlanadi. Aniq qiymatlar private papkadagi namunalarda bor.
 
-**Holat:** Qoralama. Talabnomaning bitta namunasi bor: yuridik shaxs, bo'lib-bo'lib to'lash. Qo'shimcha kelishuv, dalolatnoma, bekor qilish xati va SMS matni shablonlari hali taqdim etilmagan. Ochiq savollar 13-bo'limda.
+**Holat:** Qoralama. Talabnomaning bitta namunasi bor: yuridik shaxs, bo'lib-bo'lib to'lash. Qo'shimcha kelishuvning bitta namunasi bor: yuridik shaxs, 2024-yilgi shartnoma, hajm oshishi. Murojaat xatining bitta namunasi bor. Dalolatnoma, bekor qilish xati va SMS matni shablonlari hali taqdim etilmagan. Ochiq savollar 13-bo'limda.
 
-**Qoida identifikatorlari.** `SH` shablon va maydonlar, `RQ` raqamlash, `RJ` reja-jadval, `TN` talabnoma, `PN` penya.
+**Qoida identifikatorlari.** `SH` shablon va maydonlar, `MX` murojaat xati, `RQ` raqamlash, `RJ` reja-jadval, `KK` qo'shimcha kelishuv, `TN` talabnoma, `PN` penya.
 
 ## 1. Shartnoma shablonlari
 
@@ -51,6 +53,17 @@ Joriy shablonlar uchun band xaritasi:
 | Aloqa manzili va rekvizitlar | XII-bo'lim | XII-bo'lim | XII-bo'lim |
 
 2024- va 2025-yillardagi shablon versiyalarining matni yo'q. Ularning band xaritasini tuzish uchun matnlar kerak (Q-12).
+
+**2024-yilgi versiya, qisman.** T-1 va KK-1 ikkalasi ham 2024-yilgi shartnomaga tayanadi. Ulardan quyidagi bandlar tiklanadi. Qolgan bandlar noma'lum.
+
+| Mazmun | 2024-yilgi versiya | Joriy bo'lib-bo'lib shablon | Dalil |
+|---|---|---|---|
+| Yig'im miqdori | 2.1 | 2.1 | KK-1, 1-band: "Shartnomaning 2.1-bandi quyidagi tahrirda bayon etilsin" |
+| Jamg'arma rekvizitlari | 2.2 | 2.2 | KK-1, 4-band. Yangi tahrirdagi matn "2.2. Jamgʻarma bank rekvizitlari" bilan boshlanadi |
+| Qolgan 80% ni reja-jadval bo'yicha to'lash | 2.4, 3-xatboshi | 2.5, 2-tire va keyingi xatboshi | T-1 matni; KK-1, 3-band |
+| Parametrlar o'zgarish asoslari | 2.5 | 2.6 | KK-1 preambulasi: "Shartnoma ... 2.5-bandi uchinchi xatboshi asosida"; KK-1, 5-band. Yangi tahrir matni joriy 2.6-bandning kirish jumlasi va 3-tiresiga o'xshaydi |
+
+Joriy 2.6-bandda kirish jumlasidan keyingi uchinchi xatboshi 2-tire, ya'ni "shartnoma parametrlari va ekspertiza xulosasi o'rtasidagi farq". KK-1 aynan shu asosda tuzilgan: kelishuv yangi yig'ma ekspert xulosasiga tayanadi. 2024-yilgi 2.5-band ham shu tuzilishda bo'lsa, preambuladagi havola to'g'ri. Buni 2024-yilgi matn bilan tasdiqlash kerak (Q-12).
 
 ### 1.2. S-2026 namunasini joriy shablonlar bilan solishtirish
 
@@ -107,7 +120,7 @@ Har bir `____` bo'sh joy tizimdagi aniq maydonga bog'lanadi. Qo'lda yoziladigan 
 | Yuridik investor | Nomi, tashkiliy shakli, direktor F.I.Sh., manzil, hisob raqami, STIR, MFO, OKED, bank, telefon | Preambula, XII | Investor kartochkasi |
 | Jismoniy investor | F.I.Sh., pasport yoki ID karta seriyasi va raqami, berilgan sana, JShShIR, manzil | Preambula, 2.3, XII | Investor kartochkasi |
 | Vakil | Ishonchnoma raqami va sanasi, vakil F.I.Sh. | Preambula | Shartnoma kartochkasi |
-| Murojaat | Investor xatining sanasi va raqami | Preambula, 2.1 | Shartnoma kartochkasi |
+| Murojaat | Investor xatining sanasi va raqami | Preambula, 2.1 | Murojaat yozuvi, 2.1-bo'limga qarang (MX-02) |
 | Obyekt | Obyekt tavsifi, ya'ni nomi va qavatliligi, manzil, tuman, obyekt turi | Preambula, 2.3, 2.9, 2.10 | Obyekt kartochkasi |
 | Ruxsat hujjatlari | ART: bergan organ, sana, raqam. Kengash ishchi organining xulosasi: sana, raqam. Yig'ma ekspert xulosasi: tashkilot, sana, raqam. Bosh loyihachi: nomi va tashkiliy shakli | 2.1, 2-xatboshi (S-2026) | Obyekt kartochkasi. CSV da `APZ nomer`, `Kengash xulosasi`, `Yigʼma ekspertiza xulosasi` ustunlari bor |
 | Hisob-kitob | Hb, Hyu, Ha, Ht, Hu, yig'im hajmi, zona, Kt, Ko, Kz, Kj, K, BHM, yig'im summasi raqam va so'z bilan | 2.1, ma'lumot varag'i | Hisob snapshot'i, [yigim-hisoblash.md](yigim-hisoblash.md) |
@@ -127,6 +140,56 @@ Har bir `____` bo'sh joy tizimdagi aniq maydonga bog'lanadi. Qo'lda yoziladigan 
 
 - **SH-06.** So'zga aylantirish funksiyasi uch parametr oladi: yozuv (lotin yoki kirill), kasr uslubi (`butun` yoki `tiyin`) va kasr xonalari soni. Kasr qism nol bo'lsa, so'z bilan yozilmaydi. Masalan, T-1 da `2 841 772 500,00 (... besh yuz) so'm`. Manba: S-2026 2.1 va 2.5, T-1.
 - O' va g' harflaridagi tutuq belgisi S-2026 da aralash ishlatilgan: `‘` (U+2018) va `ʻ` (U+02BB). Tizim bitta belgini ishlatadi, uni Q-15 bilan birga tasdiqlash kerak. Etalon testlar belgini normallashtirib solishtiradi.
+
+### 2.1. Murojaat xati: jarayonning kirish nuqtasi
+
+Shartnoma ham, qo'shimcha kelishuv ham investorning yozma murojaatidan boshlanadi. Shartnoma preambulasi va 2.1-bandining 2-xatboshisi xatning sanasi va raqamini talab qiladi. KK-1 preambulasi va 2.1-bandi ham kelishuv uchun yozilgan alohida xatga havola beradi.
+
+**X-1 tuzilishi.** X-1 yuridik shaxs nomidan yozilgan bo'sh shakl. Blankda investor nomi va rekvizitlari yo'q, docx da sarlavha va rasm ham yo'q.
+
+| # | Blok | X-1 dagi mazmun | Tizim maydoni |
+|---|---|---|---|
+| X1 | Rekvizit | Xat raqami `№ ___`, ya'ni bo'sh. Sana to'ldirilgan | `appeals.letter_number`, `appeals.letter_date` |
+| X2 | Adresat | Kompaniya | Doimiy |
+| X3 | Huquqiy asoslar | 1) Vazirlar Mahkamasining 2022-yil 20-apreldagi 200-son qarori bilan tasdiqlangan, bino va inshootlarning tashqi ko'rinishini o'zgartirishni kelishish bo'yicha ma'muriy reglament. 2) Vazirlar Mahkamasining 2024-yil 25-martdagi 149-son qarori bilan tasdiqlangan Nizom | Saqlanmaydi. Shartnomaga ko'chirilmaydi. 1-asos ART yig'imiga aloqasiz ko'rinadi (Q-24) |
+| X4 | To'lov sharti | Nizom bo'yicha 20% oldindan to'lov va qolgan 80% shartnoma talablariga muvofiq | To'lov usuli tanlanmagan, faqat Nizom bayon qilingan |
+| X5 | So'rov | Obyekt manzili (tuman, MFY, ko'cha), obyekt nomi, "shartnoma tuzilishida amaliy yordam" so'rovi | Obyekt kartochkasi: manzil, tuman, MFY, ko'cha, obyekt nomi |
+| X6 | Ilova | Varaqlar soni bo'sh. Hujjatlar: "APZ, Kengash xulosasi,Yigma export xulosasi, Plashet." | `appeal_documents`, MX-03 |
+| X7 | Imzo | Lavozim "Director", "I. Familiya" shakli bo'sh | Imzolovchi lavozimi va F.I.Sh. |
+
+**Ilova hujjatlari va shartnoma 2.1-bandi.** S-2026 ning 2.1-bandida to'rtta hujjat bor (1.2-bo'lim, 2-qator). X-1 ilovasi ularning uchtasini qoplaydi:
+
+| X-1 ilovasi | S-2026, 2.1-band | Maydonlar | CSV ustuni | CSV da to'ldirilgan, 2026-yilgi 108 shartnoma |
+|---|---|---|---|---|
+| APZ, ya'ni ART | ART | Bergan organ, sana, raqam | `APZ nomer` | 106 |
+| Kengash xulosasi | Arxitektura va shaharsozlik kengashi ishchi organining xulosasi | Sana, raqam | `Kengash xulosasi` | 102 |
+| Yig'ma ekspertiza xulosasi | Yig'ma ekspert xulosasi | Tashkilot, sana, raqam. Hb, Hyu, Ha, Ht, Hu hajmlari | `Yigʼma ekspertiza xulosasi` | 100 |
+| Plashet | Yo'q | Sana, raqam, fayl | Yo'q | — |
+| Yo'q | Bosh loyihachi, ya'ni eskiz loyihani ishlab chiqqan tashkilot | Nomi, tashkiliy shakli | Yo'q | — |
+
+2024-yilgi shartnomalarda bu ustunlar kam to'ldirilgan: 203 tadan ART 36, Kengash 30, ekspertiza 18 tasida.
+
+**Qoidalar:**
+
+- **MX-01. Murojaat alohida yozuv.** Murojaatda quyidagilar saqlanadi: turi (`contract_request` yoki `amendment_request`), xat raqami va sanasi, Kompaniyaga kelib tushgan sana, investor, obyekt, imzolovchi lavozimi va F.I.Sh., ilova varaqlari soni va hujjatlar. Bitta shartnomaga bitta `contract_request` va har bir kelishuvga bitta `amendment_request` bog'lanadi. Manba: X-1; shablon preambulasi va 2.1; KK-1 preambulasi va 2.1.
+- **MX-02. Xat sanasi va raqami bir manbadan.** Shartnoma preambulasi, shartnoma 2.1-bandining 2-xatboshisi, kelishuv preambulasi va kelishuv 2.1-bandidagi xat sanasi va raqami faqat murojaat yozuvidan olinadi (SH-03). KK-1 da bitta xat ikki joyda bir xil keltirilgan. X-1 da raqam bo'sh, shablon esa raqamni talab qiladi. Raqamsiz xat bilan nima qilinishi Q-24 da.
+- **MX-03. Ilova hujjatlari.** Har bir ilova hujjati alohida yozuv: turi, bergan tashkilot, sana, raqam, fayl. Turlar ma'lumotnomasi: `art`, `council_conclusion`, `expertise_conclusion`, `plashet`, `sketch_project`. Hujjat obyekt kartochkasiga bog'lanadi va keyingi kelishuvlarda qayta ishlatiladi. KK-1 dagi yangi ekspert xulosasi ham shu jadvalga yangi yozuv bo'lib tushadi, eskisi o'chirilmaydi. Manba: X-1, X6; S-2026, 2.1; KK-1, 2.1.
+- **MX-04. Shablon talab qiladigan hujjatlar.** Shablon versiyasining 2.1-bandida ishlatiladigan har bir hujjat maydoni to'ldirilmaguncha shartnoma `hisoblangan` holatiga o'tmaydi. S-2026 versiyasi uchun bular ART, Kengash ishchi organi xulosasi, yig'ma ekspert xulosasi va bosh loyihachi. Joriy shablon uchun yig'ma ekspert xulosasi va eskiz loyihani ishlab chiqqan tashkilot. Plashet 2.1-bandda ishlatilmaydi, majburiyligi Q-24 da. Manba: 2-bo'lim, "Ruxsat hujjatlari" qatori; S-2026, 2.1.
+- **MX-05. Hajmlar ekspertizadan.** Hb, Hyu, Ha, Ht va Hu ekspert xulosasi yozuvidan kiritiladi va shu yozuvga havola bilan saqlanadi. Manba: qaror 3-band, [yigim-hisoblash.md](yigim-hisoblash.md), 1-bo'lim.
+- **MX-06. Istisno belgisi.** Murojaatdan obyekt kartochkasi yaratilganda xodim obyekt yig'imdan ozod qilinadigan toifaga kiradimi, belgilaydi va asos hujjatini biriktiradi. Tizim nom bo'yicha avtomatik qaror qilmaydi. X-1 dagi obyekt ishlab chiqarish binosi deb nomlangan. Qarorga ko'ra sanoat maqsadidagi ishlab chiqarish kapital binolaridan yig'im undirilmaydi. Manba: [yigim-hisoblash.md](yigim-hisoblash.md), 4-bo'lim, 6-band.
+- **MX-07. Investor kartochkasi.** X-1 da investor rekvizitlari yo'q: STIR, manzil, bank, telefon va direktor F.I.Sh. Bu maydonlar shartnoma preambulasi va XII-bo'limi uchun kerak (2-bo'lim). Ular qaysi hujjatdan olinishi Q-24 da.
+- **MX-08. To'lov usuli.** X-1 da to'lov usuli tanlanmagan, faqat Nizomdagi 20/80 tartibi bayon qilingan. Shablon esa to'lov usuli bo'yicha tanlanadi (1-bo'lim). To'lov usuli va muddat qayerdan olinishi Q-24 da.
+- **MX-09. Kelishuv uchun murojaat muddati.** `amendment_request` uchun parametr o'zgargan sana ham saqlanadi, masalan yangi ekspert xulosasi sanasi. Murojaat shu sanadan 5 ish kuni ichida bo'lishi kerak. Kechiksa 6.1-bandning 2-tiresi bo'yicha penya qo'llanishi mumkin. Manba: shablon 2.7 va 6.1, 2-tire. KK-1 da murojaat xati yangi ekspert xulosasidan oldinroq sanada yozilgan, Q-3 ga qarang.
+
+**Investor va obyekt kartochkasi bilan bog'lanish:**
+
+```
+murojaat (X-1) ──┬─> investor kartochkasi (MX-07)
+                 ├─> obyekt kartochkasi: manzil, nomi, turi, istisno belgisi (MX-06)
+                 │        └─> ruxsat hujjatlari: ART, Kengash, ekspertiza, plashet, eskiz (MX-03)
+                 │                 └─> hajmlar Hb..Hu (MX-05) ─> hisob snapshot'i
+                 └─> shartnoma: preambula va 2.1 dagi xat sanasi va raqami (MX-02)
+```
 
 ## 3. Shartnomani raqamlash
 
@@ -192,13 +255,84 @@ qoralama → hisoblangan → tekshirilgan → imzolashga yuborilgan → imzolang
 - shartnoma parametrlari ekspertiza xulosasidan farq qilganda;
 - ekspertiza parametrlari foydalanishga qabul qilingan bino parametrlaridan farq qilganda.
 
-**Jarayon:**
-1. Investor o'zgarish aniqlangan kundan boshlab 5 ish kuni ichida kelishuv loyihasi bilan murojaat qiladi (2.7). Kechikkan har bir kun uchun penya to'lanadi (6.1, 2-tire). 6.1-bandning 2-tiresida kunlik asos "Yig'im summasi", chegara esa "to'lovi kechiktirilgan Yig'im summasining 15 foizi" deb yozilgan. Bu holatda kechiktirilgan to'lov bo'lmaydi, shuning uchun chegara asosi aniq emas (Q-3).
-2. Tizim yangi parametrlar bo'yicha qayta hisoblaydi. Hajm oshgan bo'lsa, qo'shimcha summa **kelishuv imzolanadigan kundagi BHM** bo'yicha olinadi (5.1).
-3. Yangi reja-jadval tuziladi. To'langan summalar saqlanib qoladi.
-4. Kelishuv raqamlanadi, chop etiladi va imzolanadi. Shartnomaning yangi versiyasi faol bo'ladi.
+2024-yilgi versiyada bu asoslar 2.5-bandda (1.1-bo'lim). O'zgartirish faqat qo'shimcha kelishuv bilan kiritiladi (5.2).
 
-**Kerakli material:** qo'shimcha kelishuv shabloni hali yo'q.
+**Jarayon:**
+1. Investor o'zgarish aniqlangan kundan boshlab 5 ish kuni ichida kelishuv loyihasi bilan murojaat qiladi (2.7, MX-09). Kechikkan har bir kun uchun penya to'lanadi (6.1, 2-tire). 6.1-bandning 2-tiresida kunlik asos "Yig'im summasi", chegara esa "to'lovi kechiktirilgan Yig'im summasining 15 foizi" deb yozilgan. Bu holatda kechiktirilgan to'lov bo'lmaydi, shuning uchun chegara asosi aniq emas (Q-3).
+2. Tizim yangi parametrlar bo'yicha qayta hisoblaydi: [yigim-hisoblash.md](yigim-hisoblash.md), 5.1-bo'lim.
+3. To'langan summa va hisob sanasigacha penya aniqlanadi. Qolgan qism va penya uchun yangi reja-jadval tuziladi.
+4. Kelishuv raqamlanadi, chop etiladi va imzolanadi. Imzolangan kundan shartnomaning yangi versiyasi faol bo'ladi.
+
+### 6.1. KK-1 tuzilishi
+
+| # | Blok | Mazmuni | Maydonlar va manba |
+|---|---|---|---|
+| K1 | Sarlavha | Asl shartnoma sanasi, nomi, raqami va kelishuvning tartib raqami ("1-sonli") | Shartnoma kartochkasi, KK-03 |
+| K2 | Joy va sana | "Toshkent shahri", kelishuv sanasi | KK-04 |
+| K3 | Preambula | Kompaniya nomidan Boshqaruv raisi, Investor nomidan direktor, ikkalasi Ustav asosida. Huquqiy asoslar: PQ-236, VM 149-son qarori bilan tasdiqlangan Nizom, VI-104-94-14-0-K/24-son qaror bilan tasdiqlangan mexanizm, asl shartnomaning parametr o'zgarish bandi. Obyekt manzili va tavsifi. Kelishuv murojaatining sanasi va raqami | `signatories`, investor kartochkasi, band xaritasi (SH-02), obyekt kartochkasi, murojaat (MX-02) |
+| K4 | 1-band | 2.1-band yangi tahrirda: jami hajm va jami summa, keyin asl qism, qo'shilgan qism va penya qarzi alohida tire bilan | KK-05 – KK-09 |
+| K5 | 2-band | To'langan summa | KK-08 |
+| K6 | 3-band | Qolgan yig'im va penya ilovadagi to'lash reja-grafigi bo'yicha to'lanadi. Asl shartnomaning 80% bandi yangi tahrirda | KK-09, KK-10 |
+| K7 | 4-band | 2.2-band, ya'ni Jamg'arma rekvizitlari, yangi tahrirda | `fund_requisites`, KK-12 |
+| K8 | 5-band | Parametrlar o'zgarish asoslari bandi yangi tahrirda | Q-21 |
+| K9 | 6–9-bandlar | Ikki asl nusxa, ajralmas qism, boshqa bandlar o'z kuchida, imzolangan sanadan kuchga kirish | Doimiy matn |
+| K10 | Rekvizitlar va imzolar | Kompaniya va Investor rekvizitlari, imzo | `company_requisites`, investor kartochkasi, `signatories` |
+| K11 | Ilova | Asl shartnoma va kelishuv sanasi hamda raqami. To'lash reja-grafigi: tartib raqami, sana, summa, jami. Ikki tomon imzosi | KK-10 |
+| K12 | Ma'lumot varag'i | Shartnomadagi ma'lumot varag'i, yangi qiymatlar bilan | SH-03, KK-13 |
+
+### 6.2. Qoidalar
+
+- **KK-01. Qachon tuziladi.** Kelishuv faqat `imzolangan` holatdagi shartnomaga tuziladi. Asos turi majburiy: joriy shablon 2.6-bandidagi uchta tiredan biri. Asos hujjati MX-03 bo'yicha biriktiriladi. Kelishuv murojaati (`amendment_request`) majburiy. Manba: shablon 2.6, 2.7, 5.1, 5.2; KK-1 preambulasi.
+- **KK-02. Band raqamlari asl shartnoma versiyasidan.** Kelishuv qaysi bandni yangi tahrirda bayon qilishini asl shartnomaning `template_version` band xaritasidan oladi (SH-01, SH-02). KK-1 2024-yilgi versiya bo'yicha 2.1, 2.2, 2.4 (3-xatboshi) va 2.5 (3-xatboshi) ni o'zgartiradi. Joriy versiyada ularga 2.1, 2.2, 2.5 va 2.6 mos keladi. Manba: KK-1, 1–5-bandlar; 1.1-bo'lim.
+- **KK-03. Raqamlash.** Kelishuv raqami shartnoma ichidagi tartib raqam: `1-sonli`, `2-sonli` va hokazo. Raqam tasdiqlanganda beriladi va o'zgarmaydi. Shartnoma raqami o'zgarmaydi. Sarlavha va ilovadagi asl shartnoma sanasi va raqami shartnoma kartochkasidan olinadi (SH-03), chunki KK-1 da bitta raqam uch xil yozilgan. Bazada `(contract_id, number)` unique. Manba: KK-1 sarlavhasi va ilovasi. Umumiy reestr raqami: Q-22.
+- **KK-04. Sana va kuchga kirish.** Kelishuv imzolangan sanadan kuchga kiradi va shartnoma amal qilish muddatida amal qiladi. Manba: KK-1, 9-band (birinchi).
+- **KK-05. Asl qism qayta hisoblanmaydi.** Asl hajm, BHM, K va summa asl shartnoma snapshot'idan olinadi. Asl qism uchun BHM asl shartnoma sanasidagi qiymat. Manba: KK-1, 2.1 yangi tahriri, 1-tire; [yigim-hisoblash.md](yigim-hisoblash.md), 7-bo'lim.
+- **KK-06. Qo'shilgan qism.** Qo'shilgan hajm = yangi ekspert xulosasidagi yig'im hajmi − asl hajm. Qo'shilgan summa = qo'shilgan hajm × BHM × K. BHM sanasi ochiq: 5.1-bandda kelishuv imzolanadigan kun, KK-1 da investor xati sanasi (Q-17). Manba: shablon 5.1; KK-1, 2.1 yangi tahriri, 2-tire; [yigim-hisoblash.md](yigim-hisoblash.md), 5.1-bo'lim.
+- **KK-07. Jami.** Jami hajm = asl hajm + qo'shilgan hajm. Jami yig'im = asl summa + qo'shilgan summa. Ikkala tenglik saqlashdan oldin tekshiriladi. Manba: KK-1, 2.1. Etalon: E-KK1.
+- **KK-08. To'langan va qolgan.** To'langan = hisob sanasigacha tushgan yig'im to'lovlari, penya to'lovlarisiz (TN-03). Qolgan yig'im = jami yig'im − to'langan. Asl jadvaldagi muddati o'tgan va to'lanmagan badallar qolgan qismga kiradi. Hisob sanasi kelishuv maydoni. KK-1 da u investor xati sanasiga teng. Manba: KK-1, 2- va 3-bandlar. Etalon: E-KK2.
+- **KK-09. Penya.** Hisob sanasigacha 8-bo'lim bo'yicha hisoblangan penya qarzi alohida summa sifatida yoziladi va yangi jadvalda alohida qator bo'ladi. Summa snapshot sifatida qotiriladi. Manba: KK-1, 2.1 yangi tahriri, 3-tire; 3-band; ilova, 1-qator. Etalon: E-KK3. Hisob sanasidan keyingi penya: Q-18.
+- **KK-10. Yangi reja-jadval.** Avval penya qatori, keyin yig'im badallari. Badal = qolgan yig'im / badallar soni, BCMath'da tiyingacha (RJ-02). Jami = qolgan yig'im + penya. Tekshiruv: qatorlar yig'indisi jamiga teng. Manba: KK-1, 3-band va ilova. Etalon: E-KK4. Badallar soni, sanalari va chegarasi: Q-19.
+- **KK-11. Asl jadval.** Imzolangan asl jadval o'chirilmaydi va o'zgartirilmaydi. Kelishuv kuchga kirgan kundan talabnoma va penya yangi jadval bo'yicha hisoblanadi. Asl jadvalning to'lanmagan qatorlari "kelishuv bilan almashtirilgan" deb belgilanadi. Manba: RJ-05; KK-1, 3-band va 9-band (birinchi).
+- **KK-12. Rekvizitlar va imzolovchilar.** Kompaniya imzolovchisi, Kompaniya va Jamg'arma rekvizitlari kelishuv sanasidagi ma'lumotnoma versiyasidan olinadi (SH-04). Investor imzolovchisi va rekvizitlari investor kartochkasining joriy holatidan olinib, kelishuv snapshot'iga yoziladi. KK-1 dagi 2.2-bandda xizmat ko'rsatuvchi bank bo'linmasining manzili qo'shilgan va "Bank STIR" qatori yo'q, shuning uchun `fund_requisites` ga bo'linma manzili maydoni qo'shiladi. Manba: KK-1 preambulasi, 4-band, rekvizitlar bloki.
+- **KK-13. Ma'lumot varag'i.** Kelishuvga yangi qiymatlar bilan ma'lumot varag'i ilova qilinadi, hamma qiymat kelishuv snapshot'idan olinadi (SH-03). Manba: KK-1, ma'lumot varag'i. KK-1 dagi zona nomuvofiqligi: Q-23.
+- **KK-14. Shartnoma versiyasi.** Kelishuv imzolangach shartnomaning joriy hajmi, yig'im summasi va reja-jadvali kelishuv snapshot'idan olinadi. Asl snapshot va avvalgi kelishuvlar o'zgarishsiz saqlanadi. Hisobot har bir sana uchun o'sha kuni amalda bo'lgan versiyani ko'rsatadi. Manba: CLAUDE.md; KK-1, 7- va 8-bandlar; KAMCHILIKLAR A4.
+- **KK-15. Kamayish va koeffitsiyent o'zgarishi.** Bu holatlar uchun namuna yo'q, 5.1-band faqat hajm oshishini tartibga soladi. Tizim bu holatlarda kelishuv yaratmaydi va Q-20 javobini kutadi.
+- **KK-16. Ruxsatlar va audit.** Kelishuvni yaratish, hisoblash, tasdiqlash, raqamlash, imzolash va bekor qilish rol orqali tekshiriladi va audit jurnaliga yoziladi. Manba: CLAUDE.md.
+
+**Kelishuv holatlari:**
+
+```
+qoralama → hisoblangan → tekshirilgan → imzolashga yuborilgan → imzolangan (shartnomaning faol versiyasi)
+qoralama, hisoblangan yoki tekshirilgan → bekor qilingan (sabab bilan)
+```
+
+Q-17 bo'yicha A talqin tanlansa va imzolash sanasi hisobdagi sanadan farq qilsa, hisob qayta bajariladi va hujjat qaytadan `tekshirilgan` holatidan o'tadi.
+
+### 6.3. KK-1 ni ma'lumotlar bilan tekshirish
+
+Asl shartnoma `grafik_apz.csv` dagi bitta qatorga mos keladi. Tafsilotlar repoga yozilmaydi.
+
+| Tekshiruv | Natija |
+|---|---|
+| Asl yig'im summasi, K, to'lov sharti | mos |
+| To'langan summa, `fakt_apz.csv` dagi to'lovlar yig'indisi bilan | mos |
+| Hisob sanasigacha penya, E-KK3 | aynan mos, agar badal muddati shartnoma sanasidan aynan 3 oy keyin bo'lsa. CSV da faqat oy bor |
+| Qo'shilgan qism uchun BHM 440 000 | CSV dagi boshqa shartnomalar bilan mos, [yigim-hisoblash.md](yigim-hisoblash.md), 5-bo'lim |
+| Zona | qisman: KK-1 ichida ikki xil, CSV bitta qiymatga mos (Q-23) |
+| Asl hajm | CSV da 1 xonagacha yaxlitlangan, shuning uchun CSV hajmidan hisoblangan summa 3 750,00 ga farq qiladi |
+| Yangi yig'im summasi | CSV da hali asl summa turibdi. Kelishuv tizimga kiritilmagan, KAMCHILIKLAR A4 |
+
+Jami 7 ta tekshiruvdan 4 tasi mos, 1 tasi qisman mos, 1 tasida CSV qiymati yaxlitlangan, 1 tasida kelishuv tizimda yo'qligi sababli farq bor.
+
+**Xulosalar:**
+- Penya faqat kechiktirilgan to'lov uchun hisoblangan (PN-01, PN-02). 6.1-bandning 2-tiresi, ya'ni kelishuvga kech murojaat uchun penya qo'llanmagan.
+- Kunlar sanalar farqi bilan sanalgan. Qisman to'lov kuni birinchi oraliqqa to'liq summa bilan kirgan. Bu T-1 dagi usulga mos (PN-04).
+- Asl shartnomada 80% bitta badal bo'lgan va uning muddati shartnoma kunidan aynan 3 oy keyin chiqadi. Bu Q-6 uchun dalil, lekin bitta namuna qoidani tasdiqlamaydi.
+- 15% chegarasi bu yerda ham ishlamaydi: kechikkan badalning 15% i ham, shartnoma qiymatining 15% i ham penyadan katta. Q-2 yopilmaydi.
+
+**Kerakli material:** joriy shablon versiyasi uchun toza kelishuv shabloni, yuridik va jismoniy shaxs uchun (Q-21). Hajm kamayishi va koeffitsiyent o'zgarishi uchun namuna (Q-20).
+
+**Matndagi nuqsonlar.** Tizim huquqiy matnni o'zgartirmaydi. Bular huquqshunosga ma'lum qilinadi (Q-21): bitta shartnoma raqami uch xil yozilgan; 2-band tugallanmagan gap; 3-band yangi matnni e'lon qiladi, lekin matn 4-band sarlavhasidan keyin keladi; 5-banddagi yangi matnda "tugallanmagan", joriy shablonning 2.6-bandi 3-tiresida "tugallangan"; 9 raqami ikki marta ishlatilgan; preambulada "mazkur shartnomani" deyilgan.
 
 ## 7. Talabnoma
 
@@ -341,6 +475,12 @@ Barcha qiymatlar migratsiya yoki admin ekrani orqali kiritiladi, kodda konstanta
 | E-PN4 | Shartnoma qiymati 5 000 000,00, kechikkan badal 1 000 000,00, 2000 kun | Chegarasiz 200 000,00. A talqin, kechiktirilgan summaning 15% i: **150 000,00**. B talqin, shartnoma qiymatining 15% i (750 000,00): **200 000,00** | PN-05, Q-2. Test ikkala talqin uchun parametrlangan bo'ladi, javobdan keyin bittasi qoladi |
 | E-SW1 | 1 586 255 702,40, lotin, `butun` | "bir milliard besh yuz sakson olti million ikki yuz ellik besh ming yetti yuz ikki butun yuzdan qirq" | S-2026, 2.5 |
 | E-SW2 | 0,6, lotin, `butun` | "nol butun o'ndan olti" | S-2026, 2.1 |
+| E-KK1 | Asl: hajm 2 358,18, K 0,5, BHM 375 000. Qo'shilgan: hajm 648,54, K 0,5, BHM 440 000 | Asl qism 442 158 750,00. Qo'shilgan qism 142 678 800,00. Jami hajm 3 006,72. Jami yig'im 584 837 550,00 | KK-05 – KK-07, KK-1 2.1 |
+| E-KK2 | Jami yig'im 584 837 550,00, to'langan 265 295 250,00, 2 badal | Qolgan 319 542 300,00. Badal 159 771 150,00 × 2 | KK-08, KK-10, KK-1 2- va 3-bandlar |
+| E-KK3 | Badal 353 727 000,00, muddati D. Uning yarmi, 176 863 500,00, D + 485 kunda to'langan. Hisob sanasi D + 555 | Penya 0,0001 × (353 727 000,00 × 485 + 176 863 500,00 × 70) = 17 155 759,50 + 1 238 044,50 = **18 393 804,00** | KK-09, PN-01, PN-02, PN-04 |
+| E-KK4 | Penya 18 393 804,00 va E-KK2 badallari | Jadval: 1) penya 18 393 804,00, 2) 159 771 150,00, 3) 159 771 150,00. Jami 337 936 104,00 | KK-10, KK-1 ilovasi |
+| E-KK5 | E-KK1, lekin qo'shilgan qism uchun BHM 412 000 | Qo'shilgan qism 133 599 240,00, farqi −9 079 560,00. Test Q-17 ning ikkala talqini uchun parametrlangan: BHM xat sanasidan yoki imzolash kunidan | Q-17 |
+| E-KK6 | Asl hajm 2 358,18, qo'shilgan 648,54, kiritilgan jami 3 006,73 | Tekshiruv xato beradi: 2 358,18 + 648,54 = 3 006,72 | KK-07 |
 
 ## 13. Ochiq savollar
 
@@ -350,19 +490,27 @@ Huquqshunos yoki mas'ul bo'lim javob berishi kerak. Javob kelguncha tizim tegish
 |---|---|---|---|
 | Q-1 | **Kechikkan oldindan to'lov.** 2.5-bandning oxirgi xatboshisiga ko'ra shartnoma haqiqiy emas bo'ladimi yoki T-1 dagidek amalda qoladi va penya hisoblanadimi? | A: shartnoma haqiqiy emas, penya yo'q, butun summa qaytadan tuziladi. B: shartnoma amalda, kechikkan 20% ga penya hisoblanadi. T-1 da B qo'llangan: 710 443 125,00 ning kechikishi penyaga kirgan | Talabnoma, holatlar |
 | Q-2 | **Penya chegarasi (B2).** 15% nimadan olinadi? T-1 matni ham, 6.1 ham "to'lovi kechiktirilgan Yig'im summasining 15%" deydi, kod esa shartnoma qiymatining 15% ini oladi. Qo'shimcha savol: chegara har bir badal uchun alohidami yoki jami kechikkan summaga? T-1 matnida kunlik stavka "Yig'im summasining 0,01%" deb yozilgan, 6.1 da esa "to'lovi kechiktirilgan Yig'im summasining". Hisob 6.1 bo'yicha qilingan. Talabnoma shablonidagi bu jumla tuzatiladimi? | E-PN4: 150 000,00 yoki 200 000,00. Butun penya shartnoma qiymatining 15% iga yaqinlashganda farq katta bo'ladi | Penya, talabnoma |
-| Q-3 | **6.1-band 2-tiresi.** Qo'shimcha kelishuvga kech murojaat qilinganda chegara asosi nima, agar kechikkan to'lov bo'lmasa? | A: Yig'im summasining 15% i. B: chegara yo'q, chunki asos nolga teng | Qo'shimcha kelishuv |
+| Q-3 | **6.1-band 2-tiresi.** Qo'shimcha kelishuvga kech murojaat qilinganda chegara asosi nima, agar kechikkan to'lov bo'lmasa? 2026-11-02 dagi KK-1 da bu penya qo'llanmagan (6.3-bo'lim). KK-1 da investor xati yangi ekspert xulosasidan oldinroq sanalangan. 2.7-banddagi 5 ish kuni qaysi sanadan sanaladi: ekspert xulosasi sanasidanmi, investor uni olgan kundanmi? | A: Yig'im summasining 15% i. B: chegara yo'q, chunki asos nolga teng. Kunlik penya E-KK1 jami yig'imi uchun 58 483,755 so'm, yaxlitlash Q-5 da | Qo'shimcha kelishuv |
 | Q-4 | **3 ish kuni qachondan boshlanadi?** Talabnoma sanasidanmi, yuborilgan kundanmi yoki investor olgan kundanmi? Talabnomaga aniq oxirgi sanani yozish kerakmi? | Dalolatnoma va sudga murojaat sanasi 1–5 kunga siljiydi | Talabnoma |
 | Q-5 | **Kun sanash va yaxlitlash.** Muddat kuni va to'lov kuni penyaga kiradimi? Muddati hisob sanasiga teng badal qarzga kiradimi? Penya tiyingacha qanday yaxlitlanadi? | Har bir badal uchun ±1 kun, ya'ni 355 221 562,50 lik badalda ±35 522,16 so'm | Penya |
-| Q-6 | **Reja-jadval sanalari.** Badal kuni qanday tanlanadi: joriy shablondagidek 20-sana, S-2026 dagidek 29-sana (shartnoma sanasi CSV da 30.07.2026) yoki shartnoma sanasidagi kun? Birinchi badal shartnomadan 3 oy keyin keladimi? Oy oxiri qanday hisoblanadi? Teng bo'linmagan qoldiq qaysi badalga qo'shiladi? | Penya va talabnoma sanalari o'zgaradi | Reja-jadval |
+| Q-6 | **Reja-jadval sanalari.** Badal kuni qanday tanlanadi: joriy shablondagidek 20-sana, S-2026 dagidek 29-sana (shartnoma sanasi CSV da 30.07.2026) yoki shartnoma sanasidagi kun? KK-1 ning asl shartnomasida penya badal muddati shartnoma kuni bilan bir xil kunga to'g'ri kelgandagina mos chiqadi (6.3-bo'lim). Birinchi badal shartnomadan 3 oy keyin keladimi? Oy oxiri qanday hisoblanadi? Teng bo'linmagan qoldiq qaysi badalga qo'shiladi? | Penya va talabnoma sanalari o'zgaradi | Reja-jadval |
 | Q-7 | **S-2026 jadvali.** Imzolangan hujjatdagi jadval qaysi: ilovadagi, ya'ni 2027-yil iyulsiz va 10.2028 bilan tugaydigan, yoki CSV dagi to'g'ri choraklar? | 793 127 851,20 lik bitta badal muddati 3 oyga, oxirgisi 2.5 dagi 2 yildan tashqariga siljiydi | Ma'lumot, RJ-03 |
 | Q-8 | **T-1 asosiy qarzi.** T-1 da 5 badal qarz, CSV jadvalida esa 6 badal. CSV jadvali bir chorak oldinga siljiganmi yoki to'lov fakti to'liq emasmi? | 355 221 562,50 asosiy qarz va unga penya | Ma'lumot, import |
 | Q-9 | **9.3-band va sud.** To'lov talabnomasidan keyin sudga 30 ish kunidan oldin murojaat qilish mumkinmi? 6.3 da 3 oy deyilgan, T-1 esa 3 ish kunidan keyin sud bilan ogohlantiradi | Sud jarayoni boshlanadigan eng erta sana | Talabnoma, holatlar |
 | Q-10 | **Talabnoma raqami.** Raqamni tizim beradimi yoki devonxonaning umumiy chiquvchi hisoblagichi? Har yili qayta boshlanadimi? | Raqam berish mexanizmi | Talabnoma |
 | Q-11 | **Jismoniy shaxsga talabnoma va yozuv.** Adresat blokida nima yoziladi: JShShIR, pasport yoki manzil? Talabnoma faqat kirillda chiqadimi? | Shablon variantlari soni | Talabnoma |
-| Q-12 | **Eski shablon versiyalari.** 2024- va 2025-yilgi shartnoma shablonlari matni kerak, chunki band xaritasi ular bo'yicha tuziladi. Bir yo'la to'lanadigan shartnoma uchun talabnoma B7 matni ham kerak | Talabnomada noto'g'ri band ko'rsatilish xavfi | Band xaritasi |
+| Q-12 | **Eski shablon versiyalari.** 2024- va 2025-yilgi shartnoma shablonlari matni kerak, chunki band xaritasi ular bo'yicha tuziladi. 2026-11-02: T-1 va KK-1 dan 2024-yilgi versiyaning 4 ta bandi tiklandi (1.1-bo'lim), qolganlari noma'lum. Bir yo'la to'lanadigan shartnoma uchun talabnoma B7 matni ham kerak | Talabnomada noto'g'ri band ko'rsatilish xavfi | Band xaritasi |
 | Q-13 | **Talabnoma ilovasi.** "Hisob-kitoblar" ilovasining shakli qanday? | — | Talabnoma |
 | Q-14 | **Shartnoma raqami.** `A` va `K` harflari nimani bildiradi? Harf lotinda yoziladimi yoki kirillda? Tartib raqami haqiqatan ham yil bo'yicha qayta boshlanmaydimi? 2024-`A`-240 raqami nega ikki marta ishlatilgan? | Raqam unique'ligi | Raqamlash |
 | Q-15 | **S-2026 rasmiy yangi versiyami?** 9.3 dagi aniq sud nomi va 2.1 dagi kengaytirilgan hujjatlar ro'yxati qolgan to'rt shablonga ham kiritiladimi? Qachondan amal qiladi? | Shablon versiyasi va sanasi | Shablonlar |
 | Q-16 | **Talabnoma qachon yuboriladi?** Badal kechikkan kuniyoq yuboriladimi yoki N kundan keyinmi? Avtomatik yaratiladimi yoki xodim tasdiqlaydimi? Takroriy talabnoma bo'ladimi? SMS matni qanday? | Talabnomalar soni va ish yuklamasi | Talabnoma |
+| Q-17 | **Qo'shilgan hajm uchun BHM sanasi.** Shablonning 5.1-bandida: "qo’shimcha Yig’im qo’shimcha kelishuv imzolanadigan kunda amali qiluvchi BHM miqdoridaga asosan hisoblanadi". KK-1 da esa qo'shilgan hajm uchun BHM investor xati sanasiga olingan. Qaysi biri qo'llanadi? | A: imzolash kuni, 5.1. B: investor xati sanasi, KK-1. Bu namunada ikkala sanada BHM 440 000, farq yo'q. BHM ular orasida o'zgarsa, E-KK5: 648,54 m³ va K 0,5 uchun 412 000 va 440 000 orasidagi farq 9 079 560,00 | Kelishuv hisobi, KK-06 |
+| Q-18 | **Kelishuvdagi penya.** a) Hisob sanasidan kelishuv imzolanguncha muddati o'tgan qarzga penya hisoblanadimi yoki kelishuv bilan to'xtaydimi? b) Yangi jadvaldagi penya qatori kechiksa, unga penya hisoblanadimi? c) Penyani jadvalga kiritish majburiymi? | a) E-KK3 dagi 176 863 500,00 qarz uchun kuniga 17 686,35 so'm. b) Penyaga penya | Kelishuv, penya, KK-09 |
+| Q-19 | **Yangi reja-jadval qoidasi.** Badallar soni va sanalari qanday belgilanadi? KK-1 da penya va 1-badal bir kunda, 2-badal 3 oydan keyin. Oxirgi sanaga chegara nima: asl shartnomadagi N yil, foydalanishga ruxsatnoma sanasi yoki boshqa? Teng bo'linmasa qoldiq qayerga qo'shiladi (Q-6)? | Talabnoma va penya sanalari. RJ-03 tekshiruvini kelishuvga qo'llab bo'lmaydi | Reja-jadval, KK-10 |
+| Q-20 | **Hajm kamayishi va koeffitsiyent o'zgarishi.** Hajm kamaysa, kamaygan hajm qaysi BHM bilan ayiriladi va ortiqcha to'lov qaytariladimi (2.8 bilan solishtiring)? Kengash qarori bilan koeffitsiyent o'zgarsa, yangi K butun hajmgami, to'lanmagan qismgami yoki faqat yangi hajmga qo'llanadi? | 100 m³ kamayishda, K 0,5 bilan: asl BHM 375 000 bo'yicha 18 750 000,00, joriy BHM 440 000 bo'yicha 22 000 000,00 | Kelishuv, KK-15 |
+| Q-21 | **Toza kelishuv shabloni.** KK-1 matnidagi nuqsonlar (6.3-bo'lim oxiri) tuzatilgan shablon kerak, joriy shablon versiyasi uchun, yuridik va jismoniy shaxs uchun. Har bir kelishuvda qaysi bandlar majburiy o'zgaradi? 2.2-band nega qayta bayon qilingan: rekvizitlar o'zgarganmi? 5-banddagi yangi matn faqat "ekspertiza va foydalanishga qabul" asosini qoldiradi va "tugallanmagan" deydi. Bu ataylabmi? | Investor keyingi kelishuvga qaysi asos bilan murojaat qila olishi | Kelishuv matni, KK-02 |
+| Q-22 | **Kelishuv raqami va sanasi.** Faqat shartnoma ichidagi tartib raqami ("1-sonli") beriladimi yoki Kompaniyaning umumiy reestr raqami ham bormi? KK-1 ilova sarlavhasidagi bo'sh raqam qaysi? Sanani kim qo'yadi? | Raqam berish mexanizmi | Raqamlash, KK-03 |
+| Q-23 | **KK-1 da zona va K tarkibi.** 2.1 dagi jami qatorda 5-zona, qo'shilgan qismda 2-zona, ma'lumot varag'ida va CSV da 2-zona. 2-zonada Kz = 1,25. Shunda K = 0,5 faqat Kt × Ko × Kj ≤ 0,4 bo'lganda chiqadi, masalan Ko = 0,5 va Kj = 0,6: 0,375 dan 0,5 ga tenglashtiriladi. 5-zonada Kz = 0,5 va qolganlari 1. Qaysi zona to'g'ri va K qanday tarkiblangan? Obyekt avtoturargoh binosi bo'lgani uchun Ha savoli ham bor: [yigim-hisoblash.md](yigim-hisoblash.md), 8-bo'lim, 8-savol | Bu namunada K ikkala qismda 0,5, summa o'zgarmaydi. Snapshot'da Kt, Ko, Kz, Kj alohida bo'lmasa, qayta hisobni tekshirib bo'lmaydi | Kelishuv hisobi, ma'lumot |
+| Q-24 | **Murojaat xati.** a) Standart xat shakli bormi va tizim uni investorga beradimi? b) X-1 dagi VM 200-son qarori asosi kerakmi? c) Raqamsiz xat qabul qilinadimi? Shartnoma preambulasi raqamni talab qiladi. d) Plashet va eskiz loyiha majburiymi, plashet nima uchun ishlatiladi? e) Investor STIR, bank va direktor ma'lumotlari qaysi hujjatdan olinadi? f) To'lov usuli va muddati qayerdan olinadi, xatda ular yo'q? g) X-1 dagi ishlab chiqarish binosi yig'imdan ozodmi, buni kim hal qiladi? | Shablon tanlash, majburiy maydonlar, istisno. g) bo'yicha yig'im to'liq yoki 0 | Murojaat, MX-02 – MX-08 |
 
 Yig'imga tegishli ochiq savollar, jumladan Kj (B3), [yigim-hisoblash.md](yigim-hisoblash.md) ning 8-bo'limida.

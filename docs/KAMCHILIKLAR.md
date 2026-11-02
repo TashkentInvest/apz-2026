@@ -19,7 +19,7 @@
 | A1 | Yig'im tizimda hisoblanmaydi. Shartnoma qiymati qo'lda kiritiladi | `updateContractShow` metodida `contract_value` oddiy raqam maydoni. Kodda BHM yoki koeffitsiyentlar yo'q | P1 |
 | A2 | Hisoblash uchun kirish ma'lumotlari saqlanmaydi | Bazada faqat `build_volume` va matnli `coefficient` bor. Hb, Hyu, Ha, Ht, Hu va Kt, Ko, Kz, Kj ustunlari yo'q | P1 |
 | A3 | Shartnoma elektron shakllanmaydi | Faqat tayyor faylni yuklash mumkin, ya'ni `uploadContractFile` | P1 |
-| A4 | Qo'shimcha kelishuv tushunchasi yo'q | Jadval ham, ekran ham yo'q. O'zgarishlar shartnoma qatoriga to'g'ridan-to'g'ri yoziladi va tarixi yo'qoladi | P1 |
+| A4 | Qo'shimcha kelishuv tushunchasi yo'q | Jadval ham, ekran ham yo'q. O'zgarishlar shartnoma qatoriga to'g'ridan-to'g'ri yoziladi va tarixi yo'qoladi. 2026-11-02 dagi kelishuv namunasi bo'yicha qoidalar: `docs/spec/shartnoma-hujjatlari.md`, 6-bo'lim (KK-01 – KK-16), qayta hisoblash: `docs/spec/yigim-hisoblash.md`, 5.1-bo'lim. Namunadagi kelishuv CSV ga kiritilmagan: shartnoma qatorida hali asl summa turibdi. Kod uchun ochiq: Q-17 – Q-23 | P1 |
 | A5 | Talabnoma faqat raqam va sana maydonlaridan iborat | `demand_letter_number` va `demand_letter_date` ustunlari. Hujjat yaratilmaydi, muddat kuzatilmaydi. 2026-11-02 dagi talabnoma namunasi bo'yicha qoidalar: `docs/spec/shartnoma-hujjatlari.md`, 7-bo'lim | P1 |
 | A6 | Dalolatnoma, bekor qilish xati va SMS yo'q | Shablonning 4.2–4.4 va 5.3-bandlarida talab qilinadi | P2 |
 | A7 | Reja-jadval avtomatik tuzilmaydi | Jadval qo'lda kiritiladi, ya'ni `updateContractSchedule` | P1 |
@@ -38,7 +38,7 @@
 | B7 | Obyekt turi erkin matn | `turar joy`, `turar-joy`, `noturar-joy`, `qo'shimcha qavat` turli yozilishlarda | P1 |
 | B8 | Jadval sanalari ikki formatda | Import `d.m.Y` kalitlarini yozadi, forma esa `Y-m-d` kalitlarini | P2 |
 | B9 | Summalar `float` bilan hisoblanadi | Hisoblash funksiyalarida `float` va `round` ishlatiladi | P2 |
-| B10 | Qo'lda to'ldirilgan hujjat bazadagi ma'lumotdan farq qiladi | 2026-11-02 dagi shartnoma namunasida reja-jadvalda bitta chorak tushib qolgan va oxirgi badal 2 yillik muddatdan chiqqan. Talabnoma namunasidagi asosiy qarz CSV jadvalidan bitta badalga kam. `shartnoma-hujjatlari.md`, Q-7 va Q-8 | P1 |
+| B10 | Qo'lda to'ldirilgan hujjat bazadagi ma'lumotdan farq qiladi | 2026-11-02 dagi shartnoma namunasida reja-jadvalda bitta chorak tushib qolgan va oxirgi badal 2 yillik muddatdan chiqqan. Talabnoma namunasidagi asosiy qarz CSV jadvalidan bitta badalga kam. Kelishuv namunasida bitta shartnoma raqami uch xil yozilgan va zona ikki xil ko'rsatilgan. `shartnoma-hujjatlari.md`, Q-7, Q-8, Q-21 va Q-23 | P1 |
 
 ## C. Xavfsizlik va kirish huquqlari
 

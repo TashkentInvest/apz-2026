@@ -2,7 +2,7 @@
 
 **Manba:** Xalq deputatlari Toshkent shahar Kengashining 2024-yil 2-iyuldagi VI-104-94-14-0-K/24-son qarori, 2-ilova ("Mexanizm"). Matn: [qaror-VI-104-94-14-0-K24.txt](../materials/qaror-VI-104-94-14-0-K24.txt).
 **Amal qilish:** 2024-yil 25-martdan boshlab yuzaga kelgan huquqiy munosabatlarga (qaror 3-band).
-**Qo'shimcha manba:** 2026-11-02 dagi to'ldirilgan shartnoma namunasi S-2026 va talabnoma namunasi T-1, [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md) ga qarang. Namunalar repoga kiritilmaydi.
+**Qo'shimcha manba:** 2026-11-02 dagi to'ldirilgan shartnoma namunasi S-2026, talabnoma namunasi T-1 va qo'shimcha kelishuv namunasi KK-1, [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md) ga qarang. Namunalar repoga kiritilmaydi.
 **Holat:** Qoralama. "Ochiq savollar" bo'limidagi bandlar huquqshunos tasdig'ini kutmoqda.
 
 ## 1. Formula
@@ -95,7 +95,8 @@ Quyidagi holatlarda Ti = 0. Har bir istisno uchun asos hujjati majburiy saqlanad
 ## 5. BHM qaysi sana bo'yicha olinadi
 
 - **Asosiy shartnoma:** shartnoma sanasida amalda bo'lgan BHM. Bu qoida mavjud ma'lumotlar bilan tasdiqlangan, 6-bo'limga qarang.
-- **Qo'shimcha kelishuv:** hajm oshganda qo'shimcha yig'im kelishuv imzolanadigan kundagi BHM bo'yicha hisoblanadi. Manba: shartnoma shabloni, 5.1-band.
+- **Qo'shimcha kelishuv, asl hajm:** asl shartnoma sanasidagi BHM. Asl qism qayta hisoblanmaydi. Manba: KK-1, 2.1 yangi tahriri, 1-tire.
+- **Qo'shimcha kelishuv, qo'shilgan hajm:** shablonning 5.1-bandiga ko'ra kelishuv imzolanadigan kundagi BHM. KK-1 da esa investor xati sanasidagi BHM olingan. Bu ziddiyat 9-ochiq savolda.
 - **BHM tarixi** tizimda alohida jadvalda saqlanadi: `amal_boshlanish_sanasi` va `qiymat`. Kod ichiga yozilmaydi.
 
 | Amal qilish boshlanishi | BHM, so'm | Holat |
@@ -103,10 +104,33 @@ Quyidagi holatlarda Ti = 0. Har bir istisno uchun asos hujjati majburiy saqlanad
 | 2023-06-01 | 340 000 | ma'lumotlar bilan tasdiqlangan |
 | 2024-10-01 | 375 000 | rasmiy manba bilan tasdiqlash kerak |
 | 2025-08-01 | 412 000 | rasmiy manba bilan tasdiqlash kerak |
+| 2026-08-29 va 2026-09-03 oralig'ida | 440 000 | ma'lumotlardan aniqlangan, aniq sana va rasmiy manba kerak |
 
 2026-11-02 dagi namunalar ham bu qiymatlarga mos, lekin rasmiy manba o'rnini bosmaydi:
 - 2024-10-18 dagi shartnomada (T-1 talabnomasi) 375 000 ishlatilgan. Formula natijasi aynan teng, 2-etalonga qarang.
 - 2026-07-30 dagi shartnomada (S-2026) 412 000 ishlatilgan, 3-etalonga qarang.
+- KK-1 da qo'shilgan hajm uchun 2026-09-03 holatiga 440 000 ishlatilgan, 4-etalonga qarang.
+
+**440 000 ni CSV bilan tekshirish.** `grafik_apz.csv` da `Shartnoma qiymati / (hajm × koeffitsiyent)` hisoblandi. 412 000 oxirgi marta 2026-08-28 dagi shartnomada uchraydi. 2026-09-10 dan 2026-10-14 gacha 19 ta shartnomadan 14 tasida 440 000 chiqadi: 11 tasida aynan, 3 tasida 0,01% gacha farq bilan. Qolgan 5 tasida 440 000 ham, 412 000 ham chiqmaydi, ulardan 4 tasida 366 667, ya'ni 440 000 × 5/6. Bu koeffitsiyent ustuni noto'g'ri bo'lishi mumkin, 4-ochiq savolga qarang. Bu davrda 412 000 bo'yicha hisoblangan shartnoma yo'q. KK-1 dagi 2026-09-03 sanasi esa BHM o'zgarishining eng kech chegarasini beradi.
+
+### 5.1. Qo'shimcha kelishuvda qayta hisoblash
+
+Manba: shablon 5.1 va 2.6; KK-1, 2.1 yangi tahriri va 2-, 3-bandlar. Kelishuv qoidalari: [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md), 6-bo'lim, KK-05 – KK-10.
+
+```
+Ti_asl   = V_asl × Bh(asl shartnoma sanasi) × K_asl     asl snapshot'dan olinadi, qayta hisoblanmaydi
+ΔV       = V_yangi − V_asl                               V_yangi yangi ekspert xulosasidagi yig'im hajmi
+Ti_qo'sh = ΔV × Bh(X) × K_qo'sh                          X: 9-ochiq savol
+Ti_yangi = Ti_asl + Ti_qo'sh
+Qolgan   = Ti_yangi − To'langan(H)                       H: hisob sanasi, penya to'lovlari kirmaydi
+Jadval   = Penya(H) + Qolgan
+```
+
+- **YH-KK1.** `V_asl + ΔV = V_yangi` va `Ti_asl + Ti_qo'sh = Ti_yangi` tengliklari saqlashdan oldin tekshiriladi. Hisoblash BCMath'da olib boriladi.
+- **YH-KK2.** `ΔV` 1-bo'limdagi formula bo'yicha olinadi: `(Hb + Hyu) − (Ha + Ht + Hu)` yangi va asl qiymatlar farqi. KK-1 da faqat jami hajmlar berilgan, komponentlar yo'q. Mavjud binoga qavat qo'shilganda faqat qo'shimcha hajm hisoblanadi (3-bo'lim).
+- **YH-KK3.** `K_qo'sh` kelishuv hisoblanadigan sanadagi qaror versiyasi bo'yicha 3-bo'limdagi tartibda hisoblanadi. Snapshot'da Kt, Ko, Kz, Kj alohida saqlanadi. KK-1 da K_asl = K_qo'sh = 0,5, shuning uchun K versiyasi masalasini tekshirib bo'lmaydi.
+- **YH-KK4.** `ΔV ≤ 0` bo'lsa yoki K o'zgargan bo'lsa, tizim hisoblamaydi. 10-ochiq savolga qarang.
+- **YH-KK5.** Kelishuv hisobi alohida snapshot sifatida saqlanadi: asl snapshot'ga havola, ΔV, X sanasi va BHM, K tarkibi, H, to'langan summa, penya va natijalar (7-bo'lim).
 
 ## 6. Mavjud ma'lumotlar bilan tekshiruv, 2026-11-01
 
@@ -127,6 +151,7 @@ Nomuvofiq shartnomalar ro'yxati: `docs/materials/private/formula-nomuvofiq-shart
 - **3-shartnoma, S-2026 namunasi.** Sana 2026-07-30, 3-zona, yangi qurilish, turar-joy. Ma'lumot varag'i bo'yicha: Hb = 48 386,95, Hyu = 0, Ha = 4 909,19, Ht = 0, Hu = 11 393,31. Kt = 1, Ko = 1, Kz = 1, Kj = 0,6, demak K = 0,6. BHM 412 000.
   - Hujjatdagi hajm 32 084,46 bo'yicha: 32 084,46 × 412 000 × 0,6 = **7 931 278 512,00** so'm. Bu shartnoma va CSV bilan aynan teng. 20% = 1 586 255 702,40. 80% = 6 345 022 809,60.
   - Komponentlardan hisoblangan hajm boshqacha: 48 386,95 − 4 909,19 − 11 393,31 = **32 084,45**. Bu bo'yicha natija 7 931 276 040,00, farqi 2 472,00 so'm. Test hozircha hujjatdagi hajmni kirish sifatida oladi. Komponentlardan hisoblash testi 6-ochiq savol yopilgandan keyin qo'shiladi.
+- **4-shartnoma, KK-1 namunasi, qo'shimcha kelishuv.** Asl shartnoma 2024-yil noyabrda tuzilgan. Asl qism: 2 358,18 × 375 000 × 0,5 = **442 158 750,00**, CSV bilan aynan teng. Qo'shilgan qism: 648,54 × 440 000 × 0,5 = **142 678 800,00**. Jami hajm 3 006,72, jami yig'im **584 837 550,00**. To'langan 265 295 250,00, qolgan 319 542 300,00, ya'ni 2 × 159 771 150,00. KK-1 dagi barcha summalar formulaga aynan mos. To'liq etalonlar: [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md), E-KK1 – E-KK6.
 
 ## 7. Yaxlitlash va saqlash
 
@@ -145,3 +170,7 @@ Bu savollarga huquqshunos javob berishi kerak.
 5. **Ish kunlari.** "3 ish kuni" va "10 ish kuni" muddatlari uchun rasmiy bayram kunlari kalendari kerak.
 6. **Yig'im hajmining manbai.** S-2026 da shartnomadagi hajm 32 084,46, komponentlardan hisoblangani esa 32 084,45. Qaysi biri asos bo'ladi? A: ekspertiza xulosasidagi jami hajm, ya'ni shartnomaga yozilgani. B: Hb, Hyu, Ha, Ht va Hu dan formula bo'yicha hisoblangani. Farq 0,01 m³ uchun 2 472,00 so'm. Bir nechta binoli obyektda komponentlar yaxlitlangan holda yig'ilgan bo'lishi mumkin. Ruxsat etilgan farq qancha?
 7. **Aralash obyekt va Ko.** S-2026 obyekti ko'p qavatli turar-joy va xususiy maktabgacha ta'lim muassasasidan iborat. Butun hajmga Ko = 1 qo'llanilgan. Qaror Ko = 0,5 ni faqat "alohida turgan" ijtimoiy obyektlarga beradi. MTT alohida binoda bo'lsa, uning hajmiga 0,5 qo'llaniladimi? Ta'siri: MTT hajmi × BHM × Kz × Kj × 0,5. MTT hajmi namunada alohida berilmagan.
+8. **Avtoturargoh binosi va Ha.** KK-1 obyekti to'liq avtoturargoh binosi. Yig'im butun hajmga olingan, ma'lumot varag'ida Ha bo'sh. Qaror Ha ni "binoning (inshootning) avtoturargoh qismi umumiy hajmi" deb ta'riflaydi va formulada ayiradi. Alohida avtoturargoh binosida butun hajm Ha hisoblanadimi? A: ha, Ti = 0. B: yo'q, Ha faqat aralash binodagi avtoturargoh qismi, KK-1 dagidek 584 837 550,00.
+9. **Qo'shimcha kelishuvda BHM sanasi.** 5.1-band: kelishuv imzolanadigan kun. KK-1: investor xati sanasi. KK-1 da ikkala sanada BHM 440 000, shuning uchun farq yo'q. BHM ular orasida o'zgarsa farq paydo bo'ladi: 648,54 m³ va K 0,5 uchun 412 000 va 440 000 orasida 9 079 560,00. [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md), Q-17.
+10. **Hajm kamayishi va koeffitsiyent o'zgarishi.** Kelishuvda hajm kamaysa yoki Kengash qarori bilan K o'zgarsa, qayta hisob qanday bo'ladi? [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md), Q-20.
+11. **KK-1 da zona.** 2.1-banddagi jami qatorda 5-zona, qo'shilgan qismda 2-zona. 2-zonada K = 0,5 faqat Kt × Ko × Kj ≤ 0,4 bo'lganda chiqadi. [shartnoma-hujjatlari.md](shartnoma-hujjatlari.md), Q-23.
