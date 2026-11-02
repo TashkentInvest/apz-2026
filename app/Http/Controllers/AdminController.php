@@ -79,6 +79,7 @@ class AdminController extends Controller
         ]);
 
         $data['password'] = Hash::make($data['password']);
+        $data['can_edit_contracts'] = $request->boolean('can_edit_contracts');
 
         User::create($data);
 
@@ -108,6 +109,7 @@ class AdminController extends Controller
         } else {
             $data['password'] = Hash::make($data['password']);
         }
+        $data['can_edit_contracts'] = $request->boolean('can_edit_contracts');
 
         $user->update($data);
 
