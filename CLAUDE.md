@@ -14,7 +14,7 @@
 - **Pul summalari** BCMath yoki butun tiyinda hisoblanadi va `DECIMAL(20,2)` turida saqlanadi. `float` ishlatilmaydi.
 - **BHM, koeffitsiyentlar, zonalar va rekvizitlar** bazadagi versiyalangan ma'lumotnomalarda saqlanadi, kodga yozilmaydi.
 - **Imzolangan shartnoma** tahrirlanmaydi. O'zgarish faqat qo'shimcha kelishuv orqali kiritiladi.
-- **Ruxsatlar** rol orqali tekshiriladi. Email yoki ismga bog'lanish taqiqlanadi, `canEditContractSchedule()` bunga yomon misol.
+- **Ruxsatlar** rol orqali tekshiriladi. Email yoki ismga bog'lanish taqiqlanadi. Namuna: `AuthServiceProvider` dagi `edit-apz-contract` Gate'i.
 - **SQL** MySQL uchun yoziladi. SQLite'da dashboard ishlamaydi. Testlar uchun alohida MySQL test bazasi ishlatiladi.
 - **Repo GitHub'da ochiq.** Investor ma'lumotlari, shablonlar, parollar va `.env` commit qilinmaydi. Maxfiy materiallar `docs/materials/private/` papkasida turadi va gitignore qilingan.
 - **Interfeys tili** o'zbekcha. Mavjud ekranlar qaysi yozuvda bo'lsa, o'sha yozuvda yoziladi.

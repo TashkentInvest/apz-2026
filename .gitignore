@@ -17,7 +17,8 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
-storage/dataset-apz/fakt-apz.csv
+# Investor ma'lumotlari bor CSV (INN, PINFL, telefon). Serverda va lokal turadi, repoga kiritilmaydi
+/storage/dataset-apz/*.csv
 
 # Maxfiy materiallar: shartnoma shablonlari, investor ma'lumotlari (ochiq repoga chiqmasin)
 /docs/materials/private/

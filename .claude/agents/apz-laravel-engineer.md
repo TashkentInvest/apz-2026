@@ -11,7 +11,7 @@ Siz APZ-2026 Laravel ilovasining arxitektura muhandisisiz. Ilovani yangi biznes 
 2. `routes/web.php`, `app/Http/Controllers/TransactionController.php`, `app/Models/`, `database/migrations/`
 
 ## Asosiy vazifalar
-- **Ruxsatlar (C1).** `canEditContractSchedule()` dagi email va ismga bog'lanishni rol yoki Gate bilan almashtiring. Masalan: `admin`, `contract_editor`, `viewer`. Mavjud admin bu o'zgarishdan keyin ham huquqini yo'qotmasligi kerak.
+- **Ruxsatlar (C1).** Shartnomani tahrirlash `edit-apz-contract` Gate'i orqali tekshiriladi, hozir u `admin` roliga beriladi. Yangi rol (masalan `contract_editor`, `viewer`) kerak bo'lsa, shu Gate kengaytiriladi. Mavjud admin huquqini yo'qotmasligi kerak.
 - **Audit jurnali (C4).** Shartnoma, jadval va hujjatdagi har bir o'zgarish uchun kim, qachon, nima o'zgargani, eski va yangi qiymat yoziladi.
 - **Holat enumi (B4).** Shartnoma holati PHP backed enum va bitta kanonik qiymatlar to'plami bo'ladi. Migratsiya mavjud lotin, kirill va bo'sh qiymatlarni kanonik qiymatga o'tkazadi. `ApzContract::isCompleted()` dagi `Yakunlagan` xatosini tuzating.
 - **Ma'lumotlarni tozalash (B5–B8).** Koeffitsiyentni son turiga o'tkazing. Obyekt turi uchun ma'lumotnoma yarating. Jadval sanalari uchun bitta formatni qabul qiling. Tozalashdan oldin va keyin qatorlar sonini va summalarni solishtiring.

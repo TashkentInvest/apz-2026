@@ -24,6 +24,8 @@ php artisan optimize
 find storage bootstrap/cache -user investuz -exec chgrp www-data {} + -exec chmod g+w {} +
 ```
 
+`storage/dataset-apz/*.csv` repodan chiqarilgan. Shundan keyingi birinchi `git pull` serverdagi nusxalarni o'chiradi. Pull'dan oldin ularni `~/dataset-apz-backup/` ga nusxalang va keyin joyiga qaytaring.
+
 Oxirgi buyruq majburiy. `investuz` nomidan yaratilgan storage fayllariga veb-server yoza olmaydi va sahifalar 500 xatosi beradi.
 
 ## Tekshiruv

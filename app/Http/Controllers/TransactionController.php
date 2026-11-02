@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ContractStatus;
 use App\Models\ApzContractAttachment;
 use App\Services\SimpleXlsxExportService;
 use Illuminate\Http\Request;
@@ -147,26 +148,22 @@ class TransactionController extends Controller
             ");
 
             // Contract stats
-            $statusExpr = "LOWER(TRIM(COALESCE(contract_status, '')))";
-            $cancelledExpr = "({$statusExpr} LIKE '%bekor%' OR {$statusExpr} LIKE '%бекор%' OR {$statusExpr} LIKE '%cancel%')";
-            $completedExpr = "({$statusExpr} LIKE '%yakun%' OR {$statusExpr} LIKE '%якун%' OR {$statusExpr} LIKE '%tugal%' OR {$statusExpr} LIKE '%complete%')";
-
-            $statusExprAlias = "LOWER(TRIM(COALESCE(c.contract_status, '')))";
-            $cancelledExprAlias = "({$statusExprAlias} LIKE '%bekor%' OR {$statusExprAlias} LIKE '%бекор%' OR {$statusExprAlias} LIKE '%cancel%')";
-            $completedExprAlias = "({$statusExprAlias} LIKE '%yakun%' OR {$statusExprAlias} LIKE '%якун%' OR {$statusExprAlias} LIKE '%tugal%' OR {$statusExprAlias} LIKE '%complete%')";
+            $completedExpr = ContractStatus::Completed->sqlCondition('contract_status');
+            $cancelledExpr = ContractStatus::Cancelled->sqlCondition('contract_status');
+            $activeExpr = ContractStatus::InProgress->sqlCondition('contract_status');
 
             $contractStats = DB::selectOne("
                 SELECT
                     COUNT(*) as total,
                     SUM(CASE WHEN {$completedExpr} THEN 1 ELSE 0 END) as completed,
                     SUM(CASE WHEN {$cancelledExpr} THEN 1 ELSE 0 END) as cancelled,
-                    SUM(CASE WHEN (NOT {$cancelledExpr} AND NOT {$completedExpr}) THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN {$activeExpr} THEN 1 ELSE 0 END) as active,
                     SUM(contract_value) as total_value
                 FROM apz_contracts
             ");
 
             $activeContracts = $this->fetchContractFinancialRows([
-                "(NOT {$cancelledExprAlias} AND NOT {$completedExprAlias})",
+                ContractStatus::InProgress->sqlCondition('c.contract_status'),
             ]);
             $debtorsStats = $this->buildOverdueDebtStatsFromContracts($activeContracts);
 
@@ -1184,7 +1181,7 @@ class TransactionController extends Controller
             'total' => (int) ($payload['total'] ?? 0),
             'lastPage' => (int) ($payload['last_page'] ?? 1),
             'backUrl' => $backUrl ?: route('summary2'),
-            'canEditContract' => $this->canEditContractSchedule($request->user()),
+            'canEditContract' => (bool) $request->user()?->can('edit-apz-contract'),
             'pagination' => $this->buildContractPagination((int) ($contract->contract_id ?? 0), $backUrl, (int) $payload['page'], (int) $payload['last_page']),
             'penaltyLedger' => $penaltyLedgerForView,
         ]);
@@ -1192,7 +1189,7 @@ class TransactionController extends Controller
 
     public function updateContractSchedule(Request $request, $contractId)
     {
-        if (!$this->canEditContractSchedule($request->user())) {
+        if (!$request->user()?->can('edit-apz-contract')) {
             abort(403, 'Forbidden');
         }
 
@@ -1282,7 +1279,7 @@ class TransactionController extends Controller
 
     public function updateContractShow(Request $request, $contractId)
     {
-        if (!$this->canEditContractSchedule($request->user())) {
+        if (!$request->user()?->can('edit-apz-contract')) {
             abort(403, 'Forbidden');
         }
 
@@ -1354,11 +1351,7 @@ class TransactionController extends Controller
             ? $validated['demand_letter_date']
             : null;
 
-        $statusDb = match ($validated['contract_status']) {
-            'completed' => 'Якунланган',
-            'cancelled' => 'Бекор қилинган',
-            default => 'Амалдаги',
-        };
+        $statusDb = ContractStatus::from($validated['contract_status'])->label();
 
         $issueDb = match ($validated['construction_issue']) {
             'problem' => 'Муаммоли',
@@ -1416,7 +1409,7 @@ class TransactionController extends Controller
 
     public function uploadContractFile(Request $request, $contractId)
     {
-        if (!$this->canEditContractSchedule($request->user())) {
+        if (!$request->user()?->can('edit-apz-contract')) {
             abort(403, 'Forbidden');
         }
 
@@ -1467,7 +1460,7 @@ class TransactionController extends Controller
 
     public function uploadOtherFiles(Request $request, $contractId)
     {
-        if (!$this->canEditContractSchedule($request->user())) {
+        if (!$request->user()?->can('edit-apz-contract')) {
             abort(403, 'Forbidden');
         }
 
@@ -1510,7 +1503,7 @@ class TransactionController extends Controller
 
     public function deleteContractAttachment(Request $request, $attachmentId)
     {
-        if (!$this->canEditContractSchedule($request->user())) {
+        if (!$request->user()?->can('edit-apz-contract')) {
             abort(403, 'Forbidden');
         }
 
@@ -1561,18 +1554,6 @@ class TransactionController extends Controller
         }
 
         return $routeParams;
-    }
-
-    private function canEditContractSchedule($user): bool
-    {
-        if (!$user) {
-            return false;
-        }
-
-        $email = mb_strtolower(trim((string) ($user->email ?? '')));
-        $name = mb_strtolower(trim((string) ($user->name ?? '')));
-
-        return $email === 'superadmin@example.com' && $name === 'administrator';
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -3694,43 +3675,17 @@ class TransactionController extends Controller
 
     private function buildContractStatusWhereSql(string $status, string $alias = 'c'): ?string
     {
-        if ($status === 'all') return null;
-
-        $statusExpr = "LOWER(TRIM(COALESCE({$alias}.contract_status, '')))";
-        $cancelled  = "({$statusExpr} LIKE '%bekor%' OR {$statusExpr} LIKE '%бекор%' OR {$statusExpr} LIKE '%cancel%')";
-        $completed  = "({$statusExpr} LIKE '%yakun%' OR {$statusExpr} LIKE '%якун%' OR {$statusExpr} LIKE '%tugal%' OR {$statusExpr} LIKE '%complete%')";
-
-        return match ($status) {
-            'cancelled'   => $cancelled,
-            'completed'   => $completed,
-            'in_progress' => "(NOT {$cancelled} AND NOT {$completed})",
-            default       => null,
-        };
+        return ContractStatus::tryFrom($status)?->sqlCondition("{$alias}.contract_status");
     }
 
     private function normalizeContractStatus(?string $status): string
     {
-        $status = mb_strtolower(trim((string) $status));
-        if ($status === '') return 'in_progress';
-
-        if (str_contains($status, 'bekor') || str_contains($status, 'бекор') || str_contains($status, 'cancel')) {
-            return 'cancelled';
-        }
-
-        if (str_contains($status, 'yakun') || str_contains($status, 'якун') || str_contains($status, 'tugal') || str_contains($status, 'complete')) {
-            return 'completed';
-        }
-
-        return 'in_progress';
+        return ContractStatus::fromRaw($status)->value;
     }
 
     private function contractStatusLabel(?string $status): string
     {
-        return match ($this->normalizeContractStatus($status)) {
-            'completed'   => 'Якунланган',
-            'cancelled'   => 'Бекор қилинган',
-            default       => 'Амалдаги',
-        };
+        return ContractStatus::fromRaw($status)->label();
     }
 
     private function normalizeConstructionIssue(?string $issues): string

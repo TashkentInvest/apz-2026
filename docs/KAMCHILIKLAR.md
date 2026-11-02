@@ -3,6 +3,15 @@
 **Sana:** 2026-11-01. **Asos:** kod, ma'lumotlar bazasi, VI-104-94-14-0-K/24 qarori va 5 ta shartnoma shabloni.
 **Ustuvorlik:** P0 — xavfsizlik yoki pul hisobidagi xato. P1 — asosiy biznes talab. P2 — sifat va qo'llab-quvvatlash.
 
+## Bajarilish holati
+
+| # | Holat | Izoh |
+|---|---|---|
+| C1 | Bajarildi | `edit-apz-contract` Gate'i `admin` roliga beriladi. Email va ism tekshiruvi olib tashlandi. Testlar: `ContractEditPermissionTest` |
+| C2 | Qisman | Parol README'dan olib tashlandi. Git tarixida qolgan, shuning uchun production'da admin parolini almashtirish kerak |
+| C3 | Qisman | `storage/dataset-apz/*.csv` repodan chiqarildi va gitignore qilindi. Fayllar git tarixida qolgan. Tarixni tozalash uchun force-push kerak |
+| B4 | Qisman | Holat `App\Enums\ContractStatus` orqali bir xil aniqlanadi, `isCompleted()` tuzatildi. Bazadagi qiymatlar hali bir xil yozuvga keltirilmagan |
+
 ## A. Biznes funksiyalari yo'q
 
 | # | Kamchilik | Dalil | Ustuvorlik |

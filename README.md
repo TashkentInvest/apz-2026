@@ -118,6 +118,8 @@ Generated files:
 - `storage/dataset-apz/grafik_apz.csv`
 
 ## fact payment seeding
+
+`fakt_apz.csv` va `grafik_apz.csv` fayllarida investor ma'lumotlari bor, shuning uchun ular repoga kiritilmaydi. Seed'dan oldin ularni `storage/dataset-apz/` papkasiga qo'lda joylang.
 ```
  php artisan db:seed --class='Database\Seeders\DatabaseSeeder'
 ```
@@ -129,6 +131,6 @@ php artisan db:seed --class=ApzScheduleSeeder - only schedules
 ```
 
 ```
-php artisan make:admin --name="Administrator" --email="superadmin@example.com" --password="teamdevs"
+php artisan make:admin --name="<ism>" --email="<email>" --password="<kuchli-parol>"
 
 ```

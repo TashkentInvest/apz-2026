@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ContractStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -55,18 +56,23 @@ class ApzContract extends Model
         return $this->hasMany(ApzPayment::class, 'contract_id', 'contract_id');
     }
 
+    public function status(): ContractStatus
+    {
+        return ContractStatus::fromRaw($this->contract_status);
+    }
+
     public function isActive(): bool
     {
-        return empty($this->contract_status) || !in_array($this->contract_status, ['Bekor qilingan']);
+        return $this->status() === ContractStatus::InProgress;
     }
 
     public function isCompleted(): bool
     {
-        return $this->contract_status === 'Yakunlagan';
+        return $this->status() === ContractStatus::Completed;
     }
 
     public function isCancelled(): bool
     {
-        return $this->contract_status === 'Bekor qilingan';
+        return $this->status() === ContractStatus::Cancelled;
     }
 }
