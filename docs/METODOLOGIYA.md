@@ -56,7 +56,7 @@ Kamchiliklar ro'yxati: [KAMCHILIKLAR.md](KAMCHILIKLAR.md).
 | 0. Poydevor | Xavfsiz va testlanadigan asos | Rollar va ruxsatlar (C1), audit jurnali (C4), holat enumi (B4), MySQL test bazasi va birinchi testlar (D2), ochiq repodagi maxfiy ma'lumotlar (C2, C3) | — |
 | 1. Yig'im kalkulyatori | Ma'lumot kiritilganda yig'im avtomatik hisoblansin | Ma'lumotnomalar: BHM, koeffitsiyentlar, zonalar. Sof hisoblash xizmati va etalon testlar. Kiritish formasi va jonli hisob. Hisob snapshot'i. 50 ta nomuvofiq shartnomani ko'rib chiqish | 0 |
 | 2. Elektron shartnoma | Shartnoma tizimda tuzilsin | Investor va obyekt kartochkasi. Shablon tanlash. DOCX yoki PDF yaratish. Raqamlash. Reja-jadvalni avtomatik tuzish. Summani so'z bilan yozish | 1 |
-| 3. Qo'shimcha kelishuv | Shartnoma versiyalari | Kelishuv obyekti, qayta hisoblash, yangi BHM bo'yicha farq, yangi jadval, versiyalar tarixi | 2 |
+| 3. Qo'shimcha kelishuv | Shartnoma versiyalari | Kelishuv obyekti, qayta hisoblash, yangi BHM bo'yicha farq, yangi jadval, versiyalar tarixi. Spetsifikatsiya: `shartnoma-hujjatlari.md` 6-bo'lim, `yigim-hisoblash.md` 5.1-bo'lim. Javob kutilmoqda: 5-bo'limdagi 7- va 11-materiallar | 2 |
 | 4. Talabnoma va dalolatnoma | Muddat buzilishini avtomatik kuzatish | Kechikishni aniqlash, talabnoma yaratish, 3 ish kunlik muddatni kuzatish, penya, dalolatnoma, bekor qilish va sudga oshirish | 2 |
 | 5. Elektron imzo | Hujjatlarni E-IMZO bilan imzolash | PDF xeshini imzolash, imzoni tekshirish, QR kod va tekshirish sahifasi | 2 |
 
@@ -68,14 +68,16 @@ Quyidagi materiallarsiz tegishli bosqichni boshlab bo'lmaydi:
 |---|---|---|
 | 1 | Kj qoidasining huquqiy talqini: 0,6 metrodan 200 m ichkarida qo'llaniladimi yoki tashqarida? | 1 |
 | 2 | Penya chegarasining talqini: 15% kechiktirilgan summadanmi yoki shartnoma qiymatidanmi? | 4 |
-| 3 | BHM tarixi, rasmiy sanalari bilan | 1 |
+| 3 | BHM tarixi, rasmiy sanalari bilan. 2026-11-02: 440 000 qiymati kelishuv namunasi va CSV dan aniqlandi, boshlanish sanasi 2026-08-29 va 2026-09-03 oralig'ida | 1 |
 | 4 | Hududiy zonalar ro'yxati, tuman, mahalla va ko'cha bo'yicha, hokim qarori asosida | 1 |
 | 5 | 50 ta nomuvofiq shartnoma bo'yicha izoh | 1 |
 | 6 | Shartnoma raqamlash qoidasi: `ART-2026-А-___-______` ning har bir qismi nimani bildiradi. 2026-11-02: tuman kodi va tartib raqami ma'lumotlardan aniqlandi, harfning ma'nosi ochiq | 2 |
-| 7 | Qo'shimcha kelishuv, talabnoma, dalolatnoma va bekor qilish xati shablonlari. 2026-11-02: yuridik shaxs uchun bitta talabnoma namunasi olindi, qolganlari yo'q | 3, 4 |
+| 7 | Qo'shimcha kelishuv, talabnoma, dalolatnoma va bekor qilish xati shablonlari. 2026-11-02: yuridik shaxs uchun bitta talabnoma namunasi olindi. Qo'shimcha kelishuvning bitta to'ldirilgan namunasi olindi: yuridik shaxs, 2024-yilgi shartnoma, hajm oshishi. Unda matn nuqsonlari bor, shuning uchun joriy shablon versiyasi uchun toza kelishuv shabloni hali kerak, yuridik va jismoniy shaxs uchun (Q-21). Hajm kamayishi va koeffitsiyent o'zgarishi uchun namuna yo'q (Q-20). Dalolatnoma va bekor qilish xati yo'q | 3, 4 |
 | 8 | Ish kunlari kalendari: rasmiy bayram va qo'shimcha dam olish kunlari | 2, 4 |
 | 9 | Investor hujjatni qanday imzolashi: tizimda E-IMZO bilan yoki qog'ozda | 5 |
 | 10 | Bir yo'la to'lanadigan, ishonchnoma bo'yicha jismoniy shaxs shabloni kerakmi | 2 |
+| 11 | Qo'shimcha kelishuv qoidalari bo'yicha javoblar: qo'shilgan hajm uchun BHM sanasi (Q-17), kelishuvdagi penya (Q-18), yangi jadval qoidasi (Q-19), kelishuv raqami (Q-22) | 3 |
+| 12 | Murojaat xati: standart shakl, majburiy ilovalar, investor rekvizitlari va to'lov usuli manbai (Q-24). 2026-11-02: bitta bo'sh xat namunasi olindi | 2 |
 
 ## 6. Materiallar qayerda saqlanadi
 
