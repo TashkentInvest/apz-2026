@@ -19,7 +19,8 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Shartnoma, reja-jadval, talabnoma va ilovalarni tahrirlash faqat admin roliga ruxsat etiladi
-        Gate::define('edit-apz-contract', fn (User $user) => $user->isAdmin());
+        // Shartnoma, reja-jadval, talabnoma va ilovalarni tahrirlash alohida ruxsat bilan beriladi.
+        // role emas, chunki SSO uni har kirishda qayta yozadi.
+        Gate::define('edit-apz-contract', fn (User $user) => $user->can_edit_contracts);
     }
 }

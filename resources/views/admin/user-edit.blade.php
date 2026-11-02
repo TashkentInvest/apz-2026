@@ -61,6 +61,14 @@
                         </select>
                     </div>
                     <div class="col-12">
+                        <div class="form-check">
+                            <input type="checkbox" name="can_edit_contracts" value="1" id="can_edit_contracts" class="form-check-input"
+                                {{ old('can_edit_contracts', $user->can_edit_contracts) ? 'checked' : '' }}>
+                            <label for="can_edit_contracts" class="form-check-label small fw-semibold">Shartnomalarni tahrirlash</label>
+                        </div>
+                        <div class="form-text">Shartnoma, reja-jadval, talabnoma va ilova fayllarini o'zgartirish huquqi. Roldan alohida beriladi.</div>
+                    </div>
+                    <div class="col-12">
                         <div class="d-flex gap-2">
                             <button type="submit" class="platon-btn platon-btn-primary" style="flex:1">
                                 Saqlash

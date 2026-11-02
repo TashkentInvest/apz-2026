@@ -15,7 +15,7 @@ class User extends Authenticatable
         'name', 'email', 'password',
         'pinfl', 'inn', 'organization', 'position',
         'serial_number', 'certificate_valid_from', 'certificate_valid_to',
-        'role', 'status',
+        'role', 'status', 'can_edit_contracts',
     ];
 
     protected $hidden = [
@@ -28,6 +28,7 @@ class User extends Authenticatable
         'password'               => 'hashed',
         'certificate_valid_from' => 'datetime',
         'certificate_valid_to'   => 'datetime',
+        'can_edit_contracts'     => 'boolean',
     ];
 
     // --- Role helpers ---

@@ -7,7 +7,7 @@
 
 | # | Holat | Izoh |
 |---|---|---|
-| C1 | Bajarildi | `edit-apz-contract` Gate'i `admin` roliga beriladi. Email va ism tekshiruvi olib tashlandi. Testlar: `ContractEditPermissionTest` |
+| C1 | Bajarildi | `edit-apz-contract` Gate'i `users.can_edit_contracts` ruxsatini tekshiradi. Ruxsat admin panelida beriladi. `role` ishlatilmaydi, chunki SSO uni har kirishda qayta yozadi. Migratsiya ruxsatni eski qoida bo'yicha tahrirlay olgan hisobga beradi. Testlar: `ContractEditPermissionTest` |
 | C2 | Qisman | Parol README'dan olib tashlandi. Git tarixida qolgan, shuning uchun production'da admin parolini almashtirish kerak |
 | C3 | Qisman | `storage/dataset-apz/*.csv` repodan chiqarildi va gitignore qilindi. Fayllar git tarixida qolgan. Tarixni tozalash uchun force-push kerak |
 | B4 | Qisman | Holat `App\Enums\ContractStatus` orqali bir xil aniqlanadi, `isCompleted()` tuzatildi. Bazadagi qiymatlar hali bir xil yozuvga keltirilmagan |

@@ -80,6 +80,9 @@
                 <td>
                     @php $rl = $allRoles[$user->role] ?? $user->role; @endphp
                     <span class="sbadge {{ $user->isAdmin() ? 'sbadge-purple' : 'sbadge-blue' }}">{{ $rl }}</span>
+                    @if($user->can_edit_contracts)
+                    <div><span class="sbadge sbadge-success" style="font-size:0.72rem;margin-top:4px">Shartnoma tahriri</span></div>
+                    @endif
                 </td>
                 <td>
                     @if($user->status === 'pending')
@@ -194,6 +197,13 @@
                         <option value="{{ $val }}" {{ old('role') === $val ? 'selected' : '' }}>{{ $lbl }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input type="checkbox" name="can_edit_contracts" value="1" id="new_can_edit_contracts" class="form-check-input"
+                            {{ old('can_edit_contracts') ? 'checked' : '' }}>
+                        <label for="new_can_edit_contracts" class="form-check-label small fw-semibold">Shartnomalarni tahrirlash</label>
+                    </div>
                 </div>
                 <div class="col-12">
                     <button type="submit" class="platon-btn platon-btn-primary" style="width:100%">Yaratish</button>
