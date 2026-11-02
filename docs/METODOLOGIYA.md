@@ -71,8 +71,8 @@ Quyidagi materiallarsiz tegishli bosqichni boshlab bo'lmaydi:
 | 3 | BHM tarixi, rasmiy sanalari bilan | 1 |
 | 4 | Hududiy zonalar ro'yxati, tuman, mahalla va ko'cha bo'yicha, hokim qarori asosida | 1 |
 | 5 | 50 ta nomuvofiq shartnoma bo'yicha izoh | 1 |
-| 6 | Shartnoma raqamlash qoidasi: `ART-2026-А-___-______` ning har bir qismi nimani bildiradi | 2 |
-| 7 | Qo'shimcha kelishuv, talabnoma, dalolatnoma va bekor qilish xati shablonlari | 3, 4 |
+| 6 | Shartnoma raqamlash qoidasi: `ART-2026-А-___-______` ning har bir qismi nimani bildiradi. 2026-11-02: tuman kodi va tartib raqami ma'lumotlardan aniqlandi, harfning ma'nosi ochiq | 2 |
+| 7 | Qo'shimcha kelishuv, talabnoma, dalolatnoma va bekor qilish xati shablonlari. 2026-11-02: yuridik shaxs uchun bitta talabnoma namunasi olindi, qolganlari yo'q | 3, 4 |
 | 8 | Ish kunlari kalendari: rasmiy bayram va qo'shimcha dam olish kunlari | 2, 4 |
 | 9 | Investor hujjatni qanday imzolashi: tizimda E-IMZO bilan yoki qog'ozda | 5 |
 | 10 | Bir yo'la to'lanadigan, ishonchnoma bo'yicha jismoniy shaxs shabloni kerakmi | 2 |

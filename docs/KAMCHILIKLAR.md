@@ -11,7 +11,7 @@
 | A2 | Hisoblash uchun kirish ma'lumotlari saqlanmaydi | Bazada faqat `build_volume` va matnli `coefficient` bor. Hb, Hyu, Ha, Ht, Hu va Kt, Ko, Kz, Kj ustunlari yo'q | P1 |
 | A3 | Shartnoma elektron shakllanmaydi | Faqat tayyor faylni yuklash mumkin, ya'ni `uploadContractFile` | P1 |
 | A4 | Qo'shimcha kelishuv tushunchasi yo'q | Jadval ham, ekran ham yo'q. O'zgarishlar shartnoma qatoriga to'g'ridan-to'g'ri yoziladi va tarixi yo'qoladi | P1 |
-| A5 | Talabnoma faqat raqam va sana maydonlaridan iborat | `demand_letter_number` va `demand_letter_date` ustunlari. Hujjat yaratilmaydi, muddat kuzatilmaydi | P1 |
+| A5 | Talabnoma faqat raqam va sana maydonlaridan iborat | `demand_letter_number` va `demand_letter_date` ustunlari. Hujjat yaratilmaydi, muddat kuzatilmaydi. 2026-11-02 dagi talabnoma namunasi bo'yicha qoidalar: `docs/spec/shartnoma-hujjatlari.md`, 7-bo'lim | P1 |
 | A6 | Dalolatnoma, bekor qilish xati va SMS yo'q | Shablonning 4.2–4.4 va 5.3-bandlarida talab qilinadi | P2 |
 | A7 | Reja-jadval avtomatik tuzilmaydi | Jadval qo'lda kiritiladi, ya'ni `updateContractSchedule` | P1 |
 | A8 | Hujjatlar elektron imzolanmaydi | `EImzoService` faqat kirishda ishlatiladi | P2 |
@@ -21,14 +21,15 @@
 | # | Kamchilik | Dalil | Ustuvorlik |
 |---|---|---|---|
 | B1 | 262 ta shartnomadan 50 tasining qiymati formulaga mos kelmaydi | `docs/spec/yigim-hisoblash.md`, 6-bo'lim | P0 |
-| B2 | Penya chegarasi shartnoma matnidan boshqacha talqin qilingan | Kodda shartnoma qiymatining 15% i, matnda kechiktirilgan summaning 15% i | P0 |
-| B3 | Kj koeffitsiyenti qaror va shablonda qarama-qarshi yozilgan | Yig'im spetsifikatsiyasining 8.1-bandi | P0 |
+| B2 | Penya chegarasi shartnoma matnidan boshqacha talqin qilingan | Kodda shartnoma qiymatining 15% i, matnda kechiktirilgan summaning 15% i. 2026-11-02 dagi shartnoma va talabnoma namunalari ham kechiktirilgan summani yozadi. Namunadagi penya kunlik asos kechiktirilgan summa ekanini tasdiqlaydi, lekin chegara bu holatda ishlamagan. Ochiq: `shartnoma-hujjatlari.md`, Q-2 | P0 |
+| B3 | Kj koeffitsiyenti qaror va shablonda qarama-qarshi yozilgan | Yig'im spetsifikatsiyasining 8.1-bandi. 2026-11-02 dagi shartnoma namunasi shablon talqinini takrorlaydi, K = 0,6. Savol yopilmagan | P0 |
 | B4 | Holat qiymatlari aralash va model tekshiruvi ishlamaydi | Bazada `Bekor qilingan`, `Yakunlangan` va bo'sh qiymat. Forma `Бекор қилинган` yozadi. `ApzContract::isCompleted()` esa `Yakunlagan` qiymatini qidiradi, bunday qiymat bazada yo'q | P1 |
 | B5 | Koeffitsiyent matn sifatida saqlanadi va noto'g'ri qiymatlar bor | `coefficient` ustunida `364`, `-` va bo'sh qiymatlar uchraydi | P1 |
 | B6 | To'lov sharti Excel tomonidan buzilgan | `payment_terms` ustunida `окт.90`, ya'ni aslida 10/90 | P2 |
 | B7 | Obyekt turi erkin matn | `turar joy`, `turar-joy`, `noturar-joy`, `qo'shimcha qavat` turli yozilishlarda | P1 |
 | B8 | Jadval sanalari ikki formatda | Import `d.m.Y` kalitlarini yozadi, forma esa `Y-m-d` kalitlarini | P2 |
 | B9 | Summalar `float` bilan hisoblanadi | Hisoblash funksiyalarida `float` va `round` ishlatiladi | P2 |
+| B10 | Qo'lda to'ldirilgan hujjat bazadagi ma'lumotdan farq qiladi | 2026-11-02 dagi shartnoma namunasida reja-jadvalda bitta chorak tushib qolgan va oxirgi badal 2 yillik muddatdan chiqqan. Talabnoma namunasidagi asosiy qarz CSV jadvalidan bitta badalga kam. `shartnoma-hujjatlari.md`, Q-7 va Q-8 | P1 |
 
 ## C. Xavfsizlik va kirish huquqlari
 
